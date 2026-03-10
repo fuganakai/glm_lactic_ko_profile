@@ -20,7 +20,17 @@ RESULTS = config["results_dir"]
 rule all:
     input:
         f"{RESULTS}/sample_predictions_lasso.csv",
-        f"{RESULTS}/sample_predictions_ridge.csv"
+        f"{RESULTS}/sample_predictions_ridge.csv",
+        f"{RESULTS}/sample_predictions_rf.csv",
+        f"{RESULTS}/r2_scores.csv",
+        f"{RESULTS}/feature_importances.csv",
+        f"{RESULTS}/figures/r2_comparison.png",
+        f"{RESULTS}/figures/pred_vs_actual.png",
+        f"{RESULTS}/figures/feature_importance_ranking.png",
+        f"{RESULTS}/figures/r2_cv_distribution.png",
+        f"{RESULTS}/figures/feature_importance_heatmap.png",
+        f"{RESULTS}/figures/prevalence_vs_importance.png",
+        f"{RESULTS}/figures/cumulative_importance.png"
 
 
 # ============================================================
@@ -121,28 +131,69 @@ rule make_ko_profile:
 
 
 # ============================================================
-# Step 5: Lasso / Ridge 予測
-#   OUTPUT: {results_dir}/sample_predictions_{lasso,ridge}.csv
+# Step 5: Lasso / Ridge / RandomForest 予測
+#   OUTPUT: {results_dir}/sample_predictions_{lasso,ridge,rf}.csv
+#           {results_dir}/r2_scores.csv
+#           {results_dir}/feature_importances.csv
+#           {results_dir}/ko_prevalence.csv
 # ============================================================
-rule bench_lasso_ridge:
+rule bench_models:
     input:
         ko_profile  = "data/ko_profile.csv",
         il12_csv    = config["il12_csv"],
         sample_list = config["sample_list"]
     output:
-        lasso = f"{RESULTS}/sample_predictions_lasso.csv",
-        ridge = f"{RESULTS}/sample_predictions_ridge.csv"
+        lasso        = f"{RESULTS}/sample_predictions_lasso.csv",
+        ridge        = f"{RESULTS}/sample_predictions_ridge.csv",
+        rf           = f"{RESULTS}/sample_predictions_rf.csv",
+        r2_scores    = f"{RESULTS}/r2_scores.csv",
+        importances  = f"{RESULTS}/feature_importances.csv",
+        prevalence   = f"{RESULTS}/ko_prevalence.csv"
     log:
-        f"logs/05_bench_lasso_ridge.log"
+        f"logs/05_bench_models.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
-        python scripts/05_bench_lasso_ridge.py \
+        python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
             --il12-csv       {input.il12_csv} \
             --sample-list    {input.sample_list} \
             --output-dir     {RESULTS} \
-            --model          both \
-            --random-state   {config[random_state]} > {log} 2>&1
+            --model          all \
+            --random-state   {config[random_state]} \
+            --n-estimators   {config[n_estimators]} > {log} 2>&1
+        """
+
+
+# ============================================================
+# Step 6: 可視化
+#   OUTPUT: {results_dir}/figures/*.png
+# ============================================================
+rule visualize:
+    input:
+        r2_scores   = f"{RESULTS}/r2_scores.csv",
+        importances = f"{RESULTS}/feature_importances.csv",
+        prevalence  = f"{RESULTS}/ko_prevalence.csv",
+        pred_lasso  = f"{RESULTS}/sample_predictions_lasso.csv",
+        pred_ridge  = f"{RESULTS}/sample_predictions_ridge.csv",
+        pred_rf     = f"{RESULTS}/sample_predictions_rf.csv"
+    output:
+        fig1 = f"{RESULTS}/figures/r2_comparison.png",
+        fig2 = f"{RESULTS}/figures/pred_vs_actual.png",
+        fig3 = f"{RESULTS}/figures/feature_importance_ranking.png",
+        fig4 = f"{RESULTS}/figures/r2_cv_distribution.png",
+        fig5 = f"{RESULTS}/figures/feature_importance_heatmap.png",
+        fig6 = f"{RESULTS}/figures/prevalence_vs_importance.png",
+        fig7 = f"{RESULTS}/figures/cumulative_importance.png"
+    log:
+        f"logs/06_visualize.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/06_visualize.py \
+            --results-dir {RESULTS} \
+            --output-dir  {RESULTS}/figures \
+            --top-n-ko    {config[top_n_ko]} > {log} 2>&1
         """
