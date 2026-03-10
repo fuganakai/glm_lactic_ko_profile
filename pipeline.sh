@@ -1,0 +1,137 @@
+#!/bin/bash
+# ============================================================
+# pipeline.sh  —  KO profile → Lasso/Ridge 予測パイプライン
+#
+# 入力: {genome_dir}/{sample}.fna
+# フロー: Prokka → KoFamScan → KO profile → Lasso/Ridge
+#
+# 使い方:
+#   bash pipeline.sh              # 通常実行
+#   bash pipeline.sh --dry-run    # 実行内容の確認のみ
+#   bash pipeline.sh --dag        # 依存関係グラフを dag.png に出力
+# ============================================================
+set -euo pipefail
+
+# ============================================================
+# [1] ユーザー設定 — ここだけ編集する
+# ============================================================
+
+# --- 入力データ ---
+GENOME_DIR="data/genomes"              # {sample}.fna が入ったディレクトリ ← 要変更
+SAMPLE_LIST="data/sample_list.txt"     # ← 要変更
+IL12_CSV="data/il12_reporter.csv"      # ← 要変更
+
+# --- KoFamScan データベース ---
+KOFAMSCAN_DIR="/path/to/kofamscan/bin"      # ← 要変更
+KOFAMSCAN_KO_LIST="/path/to/kofamscan/ko_list"   # ← 要変更
+KOFAMSCAN_PROFILES="/path/to/kofamscan/profiles" # ← 要変更
+
+# --- conda 環境 ---
+CONDA_BASE="/home/nakai/miniforge3"    # ← 要変更
+CONDA_ENV_PROKKA="prokka_env"          # ← 要変更
+CONDA_ENV_KOFAM="kofam_env"           # ← 要変更
+CONDA_ENV_ML="ml_env"                  # ← 要変更
+
+# --- SGE設定 (ローカル実行なら USE_SGE=false のまま) ---
+USE_SGE=false
+SGE_GROUP="tga-yamadalab2025"
+MAX_JOBS=20
+
+# --- パラメータ ---
+MIN_SAMPLES_KO=5
+RANDOM_STATE=42
+RESULTS_DIR="results/lasso_ridge"
+
+# ============================================================
+# [2] 引数処理
+# ============================================================
+DRY_RUN=false
+SHOW_DAG=false
+
+for arg in "$@"; do
+    case $arg in
+        --dry-run) DRY_RUN=true ;;
+        --dag)     SHOW_DAG=true ;;
+        *) echo "[ERROR] 不明なオプション: $arg" >&2; exit 1 ;;
+    esac
+done
+
+# ============================================================
+# [3] 初期チェック
+# ============================================================
+if [ ! -f "$SAMPLE_LIST" ]; then
+    echo "[ERROR] SAMPLE_LIST が見つかりません: $SAMPLE_LIST" >&2; exit 1
+fi
+if [ ! -d "$GENOME_DIR" ]; then
+    echo "[ERROR] GENOME_DIR が見つかりません: $GENOME_DIR" >&2; exit 1
+fi
+if [ ! -f "$IL12_CSV" ]; then
+    echo "[ERROR] IL12_CSV が見つかりません: $IL12_CSV" >&2; exit 1
+fi
+
+mkdir -p config logs
+
+# ============================================================
+# [4] config/pipeline.yaml を生成
+# ============================================================
+cat > config/pipeline.yaml <<EOF
+genome_dir:           "${GENOME_DIR}"
+sample_list:          "${SAMPLE_LIST}"
+il12_csv:             "${IL12_CSV}"
+kofamscan_dir:        "${KOFAMSCAN_DIR}"
+kofamscan_ko_list:    "${KOFAMSCAN_KO_LIST}"
+kofamscan_profiles:   "${KOFAMSCAN_PROFILES}"
+conda_base:           "${CONDA_BASE}"
+conda_env_prokka:     "${CONDA_ENV_PROKKA}"
+conda_env_kofam:      "${CONDA_ENV_KOFAM}"
+conda_env_ml:         "${CONDA_ENV_ML}"
+min_samples_ko:       ${MIN_SAMPLES_KO}
+random_state:         ${RANDOM_STATE}
+results_dir:          "${RESULTS_DIR}"
+EOF
+
+echo "[pipeline.sh] config/pipeline.yaml を生成しました"
+echo "[pipeline.sh] 結果出力先: ${RESULTS_DIR}"
+
+# ============================================================
+# [5] DAG可視化モード
+# ============================================================
+if [ "$SHOW_DAG" = true ]; then
+    snakemake --dag --snakefile Snakefile --configfile config/pipeline.yaml \
+    | dot -Tpng > dag.png
+    echo "[pipeline.sh] dag.png を生成しました"
+    exit 0
+fi
+
+# ============================================================
+# [6] 実行
+# ============================================================
+if [ "$USE_SGE" = true ]; then
+    SNAKEMAKE_CMD="snakemake \
+        --snakefile Snakefile \
+        --configfile config/pipeline.yaml \
+        --cluster 'qsub -g ${SGE_GROUP} -cwd -pe smp 8 -l mem_req=16G -o logs/ -e logs/' \
+        --jobs ${MAX_JOBS} \
+        --latency-wait 60 \
+        --keep-going \
+        --rerun-incomplete \
+        --printshellcmds"
+else
+    SNAKEMAKE_CMD="snakemake \
+        --snakefile Snakefile \
+        --configfile config/pipeline.yaml \
+        --cores 8 \
+        --keep-going \
+        --rerun-incomplete \
+        --printshellcmds"
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    echo "[pipeline.sh] ドライラン"
+    eval "$SNAKEMAKE_CMD --dryrun"
+    exit 0
+fi
+
+echo "[pipeline.sh] パイプライン開始"
+eval "$SNAKEMAKE_CMD"
+echo "[pipeline.sh] 完了"
