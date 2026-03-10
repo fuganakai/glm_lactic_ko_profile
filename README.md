@@ -1,4 +1,4 @@
-# ko_profile — KO profile → IL-12 予測パイプライン
+# KO profile → IL-12 予測パイプライン
 
 KEGG Orthology (KO) のプレゼンス/アブセンスプロファイルから
 IL-12 産生量を Lasso / Ridge で予測するスタンドアロンパイプラインです。
