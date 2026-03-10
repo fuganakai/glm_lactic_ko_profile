@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
-# pipeline.sh  —  KO profile → Lasso/Ridge 予測パイプライン
+# pipeline.sh  —  KO profile → Lasso/Ridge/RF 予測パイプライン
 #
 # 入力: {genome_dir}/{sample}.fna
-# フロー: Prokka → KoFamScan → KO profile → Lasso/Ridge
+# フロー: Prokka → KoFamScan → KO profile → Lasso/Ridge/RF → 可視化
 #
 # 使い方:
 #   bash pipeline.sh              # 通常実行
@@ -40,7 +40,9 @@ MAX_JOBS=20
 # --- パラメータ ---
 MIN_SAMPLES_KO=5
 RANDOM_STATE=42
-RESULTS_DIR="results/lasso_ridge"
+N_ESTIMATORS=500        # RandomForest の木の数
+TOP_N_KO=20             # 可視化で表示する上位KO数
+RESULTS_DIR="results/models"
 
 # ============================================================
 # [2] 引数処理
@@ -87,6 +89,8 @@ conda_env_kofam:      "${CONDA_ENV_KOFAM}"
 conda_env_ml:         "${CONDA_ENV_ML}"
 min_samples_ko:       ${MIN_SAMPLES_KO}
 random_state:         ${RANDOM_STATE}
+n_estimators:         ${N_ESTIMATORS}
+top_n_ko:             ${TOP_N_KO}
 results_dir:          "${RESULTS_DIR}"
 EOF
 
