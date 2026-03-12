@@ -70,11 +70,7 @@ pip install -r requirements.txt
 ## 実行
 
 ```bash
-# 1. pipeline.sh の「ユーザー設定」セクションを編集
-#    - GENOME_DIR, SAMPLE_LIST, IL12_CSV
-#    - KOFAMSCAN_DIR, KOFAMSCAN_KO_LIST, KOFAMSCAN_PROFILES
-#    - CONDA_BASE, CONDA_ENV_PROKKA, CONDA_ENV_KOFAM, CONDA_ENV_ML
-
+# 1. pipeline.sh の「ユーザー設定」セクションを編集（詳細は下記）
 # 2. 実行確認 (ドライラン)
 bash pipeline.sh --dry-run
 
@@ -83,6 +79,45 @@ bash pipeline.sh
 ```
 
 SGEクラスター上で実行する場合は `USE_SGE=true` に変更してください。
+
+### pipeline.sh の設定項目
+
+**ユーザーが変更するのは `pipeline.sh` 上部の変数のみ。** 変数を変えると
+`config/pipeline.yaml` が自動生成され、全スクリプトに反映される。
+
+#### 入力パス
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `GENOME_DIR` | `data/genomes` | `{sample}.fna` が入ったディレクトリ |
+| `SAMPLE_LIST` | `data/sample_list.txt` | 1行1サンプルID のテキストファイル |
+| `IL12_CSV` | `data/il12_reporter.csv` | IL-12測定値CSV |
+
+例えばゲノムが `data/my_genomes/` にある場合：
+
+```bash
+# pipeline.sh
+GENOME_DIR="data/my_genomes"   # ← ここだけ変える
+```
+
+これだけで全ステップに反映される。
+
+#### KoFamScan データベース
+
+| 変数 | 説明 |
+|---|---|
+| `KOFAMSCAN_DIR` | kofamscan 実行ファイルのディレクトリ |
+| `KOFAMSCAN_KO_LIST` | `ko_list` ファイルのパス |
+| `KOFAMSCAN_PROFILES` | `profiles/` ディレクトリのパス |
+
+#### conda 環境
+
+| 変数 | 説明 |
+|---|---|
+| `CONDA_BASE` | conda のインストール先 (`conda info --base` で確認) |
+| `CONDA_ENV_PROKKA` | Prokka 用 conda 環境名 |
+| `CONDA_ENV_KOFAM` | KoFamScan 用 conda 環境名 |
+| `CONDA_ENV_ML` | Python ML ツール用 conda 環境名 |
 
 ### 主なパラメータ（pipeline.sh）
 
