@@ -11,7 +11,8 @@ configfile: "config/pipeline.yaml"
 
 from pathlib import Path
 
-SAMPLES = [s.strip() for s in Path(config["sample_list"]).read_text().splitlines() if s.strip()]
+# genome_dir 内の .fna ファイルからサンプルを自動検出
+SAMPLES = [p.stem for p in sorted(Path(config["genome_dir"]).glob("*.fna"))]
 RESULTS = config["results_dir"]
 
 # ============================================================
@@ -110,8 +111,7 @@ rule kofamscan_to_csv:
 # ============================================================
 rule make_ko_profile:
     input:
-        ko_csvs     = expand("data/ko_annotations/{sample}_genome.csv", sample=SAMPLES),
-        sample_list = config["sample_list"]
+        ko_csvs = expand("data/ko_annotations/{sample}_genome.csv", sample=SAMPLES)
     output:
         profile = "data/ko_profile.csv",
         ko_list = "data/ko_list.txt"
@@ -123,7 +123,6 @@ rule make_ko_profile:
         conda activate {config[conda_env_ml]}
         python scripts/04_make_ko_profile.py \
             --ko-annot-dir   data/ko_annotations \
-            --sample-list    {input.sample_list} \
             --min-samples-ko {config[min_samples_ko]} \
             --output-profile {output.profile} \
             --output-ko-list {output.ko_list} > {log} 2>&1
@@ -139,9 +138,8 @@ rule make_ko_profile:
 # ============================================================
 rule bench_models:
     input:
-        ko_profile  = "data/ko_profile.csv",
-        il12_csv    = config["il12_csv"],
-        sample_list = config["sample_list"]
+        ko_profile = "data/ko_profile.csv",
+        il12_csv   = config["il12_csv"]
     output:
         lasso        = f"{RESULTS}/sample_predictions_lasso.csv",
         ridge        = f"{RESULTS}/sample_predictions_ridge.csv",
@@ -158,7 +156,6 @@ rule bench_models:
         python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
             --il12-csv       {input.il12_csv} \
-            --sample-list    {input.sample_list} \
             --output-dir     {RESULTS} \
             --model          all \
             --random-state   {config[random_state]} \

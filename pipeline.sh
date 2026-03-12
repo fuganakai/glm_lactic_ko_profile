@@ -18,7 +18,6 @@ set -euo pipefail
 
 # --- 入力データ ---
 GENOME_DIR="data/genomes"              # {sample}.fna が入ったディレクトリ ← 要変更
-SAMPLE_LIST="data/sample_list.txt"     # ← 要変更
 IL12_CSV="data/il12_reporter.csv"      # ← 要変更
 
 # --- KoFamScan データベース ---
@@ -61,9 +60,6 @@ done
 # ============================================================
 # [3] 初期チェック
 # ============================================================
-if [ ! -f "$SAMPLE_LIST" ]; then
-    echo "[ERROR] SAMPLE_LIST が見つかりません: $SAMPLE_LIST" >&2; exit 1
-fi
 if [ ! -d "$GENOME_DIR" ]; then
     echo "[ERROR] GENOME_DIR が見つかりません: $GENOME_DIR" >&2; exit 1
 fi
@@ -78,7 +74,6 @@ mkdir -p config logs
 # ============================================================
 cat > config/pipeline.yaml <<EOF
 genome_dir:           "${GENOME_DIR}"
-sample_list:          "${SAMPLE_LIST}"
 il12_csv:             "${IL12_CSV}"
 kofamscan_dir:        "${KOFAMSCAN_DIR}"
 kofamscan_ko_list:    "${KOFAMSCAN_KO_LIST}"

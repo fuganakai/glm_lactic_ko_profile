@@ -3,8 +3,8 @@
 scripts/04_make_ko_profile.py — KO統計 & KO profileマトリクス作成
 
 INPUT:
-    --ko-annot-dir   data/processed/ko_annotations/  ({sample}_genome.csv 群)
-    --sample-list    sample_list.txt
+    --ko-annot-dir   data/ko_annotations/  ({sample}_genome.csv 群)
+                     ディレクトリ内の *_genome.csv を自動検出
     --min-samples-ko 5  (このサンプル数以上のKOのみ学習対象に含める)
 
 OUTPUT:
@@ -21,8 +21,10 @@ from pathlib import Path
 import pandas as pd
 
 
-def load_sample_list(path: str) -> list:
-    return [s.strip() for s in Path(path).read_text().splitlines() if s.strip()]
+def discover_samples(ko_annot_dir: str) -> list:
+    """ko_annot_dir 内の *_genome.csv からサンプルIDを自動検出"""
+    csvs = sorted(Path(ko_annot_dir).glob("*_genome.csv"))
+    return [p.name.replace("_genome.csv", "") for p in csvs]
 
 
 def build_ko_maps(ko_annot_dir: str, sample_list: list) -> tuple:
@@ -33,23 +35,15 @@ def build_ko_maps(ko_annot_dir: str, sample_list: list) -> tuple:
     """
     ko_to_samples  = defaultdict(set)
     sample_to_kos  = defaultdict(set)
-    missing = []
 
     for sample_id in sample_list:
         csv_path = os.path.join(ko_annot_dir, f"{sample_id}_genome.csv")
-        if not os.path.exists(csv_path):
-            missing.append(sample_id)
-            continue
-
         df = pd.read_csv(csv_path)
         df = df[df["閾値以上ornot"] == "y"]
 
         for ko in df["KO"].unique():
             ko_to_samples[ko].add(sample_id)
             sample_to_kos[sample_id].add(ko)
-
-    if missing:
-        print(f"[WARNING] KOファイルが見つからないサンプル: {len(missing)}件", file=sys.stderr)
 
     return ko_to_samples, sample_to_kos
 
@@ -74,14 +68,13 @@ def print_statistics(ko_to_samples: dict, min_samples_ko: int) -> None:
 def main():
     parser = argparse.ArgumentParser(description="KO profile マトリクス作成")
     parser.add_argument("--ko-annot-dir",   required=True)
-    parser.add_argument("--sample-list",    required=True)
     parser.add_argument("--min-samples-ko", type=int, default=5)
     parser.add_argument("--output-profile", required=True)
     parser.add_argument("--output-ko-list", required=True)
     args = parser.parse_args()
 
-    sample_list = load_sample_list(args.sample_list)
-    print(f"[make_ko_profile] サンプル数: {len(sample_list)}")
+    sample_list = discover_samples(args.ko_annot_dir)
+    print(f"[make_ko_profile] サンプル数: {len(sample_list)} (自動検出)")
 
     ko_to_samples, sample_to_kos = build_ko_maps(args.ko_annot_dir, sample_list)
     print_statistics(ko_to_samples, args.min_samples_ko)
