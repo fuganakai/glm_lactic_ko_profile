@@ -1,13 +1,13 @@
 # KO profile → IL-12 予測パイプライン
 
 KEGG Orthology (KO) のプレゼンス/アブセンスプロファイルから
-IL-12 産生量を **Lasso / Ridge / Random Forest** で予測し、結果を可視化するスタンドアロンパイプラインです。
+IL-12 産生量を **Lasso / Ridge / Random Forest** で予測し、結果を可視化するパイプラインです。
 
 embedding (DNABERT-2 / ESM-2) は使いません。GPU 不要。
 
 ---
 
-## 概要
+## パイプラインの流れ
 
 ```
 genome_dir/*.fna  +  il12_reporter.csv
@@ -29,99 +29,172 @@ results/models/figures/*.png
 
 ---
 
-## 必要な環境
+## セットアップ手順
 
-| ツール | 用途 | conda 環境 |
-|---|---|---|
-| Prokka | ゲノムアノテーション (.fna → .faa) | `prokka_env` |
-| KoFamScan | KO アノテーション (.faa → .txt) | `kofam_env` |
-| Python (scikit-learn, matplotlib 等) | プロファイル作成・予測・可視化 | `ml_env` |
-
----
-
-## 必要なもの
-
-```
-data/
-├── genomes/                 # {sample}.fna が入ったディレクトリ
-│   ├── sample001.fna        # ファイル名の stem がサンプルIDとして自動検出される
-│   ├── sample002.fna
-│   └── ...
-└── il12_reporter.csv        # sample_id, IL-12 Reporter (cps) の2列
-```
-
-`sample_list.txt` は不要。`GENOME_DIR` 内の `.fna` ファイルからサンプルが自動検出される。
-
-KoFamScan のデータベース (`ko_list`, `profiles`) も別途必要です。
-→ https://www.genome.jp/ftp/tools/kofam_scan/
-
----
-
-## セットアップ
+### Step 1: リポジトリのクローン
 
 ```bash
 git clone <this-repo>
-cd ko_profile
+cd glm_lactic_ko_profile
+```
 
-# Python依存パッケージ
+---
+
+### Step 2: Prokka のインストール
+
+Prokka はゲノム配列 (`.fna`) からタンパク質配列 (`.faa`) を予測するツールです。
+
+→ https://github.com/tseemann/prokka
+
+conda でインストールする場合:
+
+```bash
+conda create -n prokka_env -c conda-forge -c bioconda prokka
+```
+
+インストール確認:
+
+```bash
+conda activate prokka_env
+prokka --version
+```
+
+---
+
+### Step 3: KoFamScan のインストールとデータベースの準備
+
+KoFamScan は HMM プロファイルを使って KO アノテーションを行うツールです。
+
+→ https://github.com/takaram/kofam_scan
+
+```bash
+conda create -n kofam_env -c conda-forge -c bioconda kofamscan
+```
+
+データベース（`ko_list` と `profiles/`）は KEGG FTP から別途ダウンロードが必要です:
+
+→ https://www.genome.jp/ftp/tools/kofam_scan/
+
+```bash
+# 例: /db/kofamscan/ に展開した場合
+ls /db/kofamscan/
+# ko_list   profiles/
+```
+
+ダウンロード後の `ko_list` と `profiles/` ディレクトリのパスを後の手順で `pipeline.sh` に記載します。
+
+---
+
+### Step 4: Python 環境のセットアップ
+
+```bash
+conda create -n ml_env python=3.10
 conda activate ml_env
 pip install -r requirements.txt
 ```
 
+`requirements.txt` の内容:
+
+```
+pandas>=1.5
+numpy>=1.23
+scikit-learn>=1.2
+snakemake>=7.0
+matplotlib>=3.6
+seaborn>=0.12
+```
+
 ---
 
-## 実行
+### Step 5: データの配置
+
+以下の構成になるようにデータを配置します。
+
+```
+glm_lactic_ko_profile/
+└── data/
+    ├── genomes/                 # ← ゲノム配列を入れるディレクトリ
+    │   ├── sample001.fna        #   ファイル名の stem がサンプルID になる
+    │   ├── sample002.fna
+    │   └── ...
+    └── il12_reporter.csv        # ← IL-12 測定値CSV
+```
+
+`il12_reporter.csv` は以下の2列が必要です（列名はこの通りにすること）:
+
+```
+sample_id,IL-12 Reporter (cps)
+sample001,12345.6
+sample002,23456.7
+...
+```
+
+> **ディレクトリ名やファイル名を変えたい場合**
+> `data/genomes/` や `data/il12_reporter.csv` はデフォルト値です。
+> 別の場所にデータがある場合は、次の手順で `pipeline.sh` を編集してパスを変えるだけで動きます。
+
+---
+
+### Step 6: pipeline.sh の設定
+
+`pipeline.sh` の上部にある変数を自分の環境に合わせて編集します。
+**ここだけ編集すれば、全スクリプトに自動反映されます。**
 
 ```bash
-# 1. pipeline.sh の「ユーザー設定」セクションを編集（詳細は下記）
-# 2. 実行確認 (ドライラン)
+# --- 入力データ ---
+GENOME_DIR="data/genomes"              # .fna が入ったディレクトリ
+IL12_CSV="data/il12_reporter.csv"      # IL-12 測定値CSV
+
+# --- KoFamScan データベース ---
+KOFAMSCAN_DIR="/path/to/kofamscan/bin"       # kofamscan 実行ファイルのディレクトリ
+KOFAMSCAN_KO_LIST="/path/to/ko_list"         # ko_list ファイルのパス
+KOFAMSCAN_PROFILES="/path/to/profiles"       # profiles/ ディレクトリのパス
+
+# --- conda 環境 ---
+CONDA_BASE="/home/yourname/miniforge3"  # conda info --base で確認
+CONDA_ENV_PROKKA="prokka_env"
+CONDA_ENV_KOFAM="kofam_env"
+CONDA_ENV_ML="ml_env"
+```
+
+`conda info --base` でインストール先を確認できます:
+
+```bash
+conda info --base
+# /home/yourname/miniforge3  ← これを CONDA_BASE に設定
+```
+
+---
+
+### Step 7: SGE クラスターの設定（ローカル実行なら不要）
+
+SGE クラスターで実行する場合は以下も変更します:
+
+```bash
+USE_SGE=true
+SGE_GROUP="your-group-name"   # qsub -g に渡すグループ名
+MAX_JOBS=20                   # 同時投入ジョブ数
+```
+
+ローカル実行なら `USE_SGE=false`（デフォルト）のままで構いません。
+
+---
+
+### Step 8: 実行
+
+設定が完了したら実行します。
+
+```bash
+# まず内容確認（ドライラン）
 bash pipeline.sh --dry-run
 
-# 3. 本実行
+# 本実行
 bash pipeline.sh
 ```
 
-SGEクラスター上で実行する場合は `USE_SGE=true` に変更してください。
+---
 
-### pipeline.sh の設定項目
-
-**ユーザーが変更するのは `pipeline.sh` 上部の変数のみ。** 変数を変えると
-`config/pipeline.yaml` が自動生成され、全スクリプトに反映される。
-
-#### 入力パス
-
-| 変数 | デフォルト | 説明 |
-|---|---|---|
-| `GENOME_DIR` | `data/genomes` | `{sample}.fna` が入ったディレクトリ（`.fna` から自動検出） |
-| `IL12_CSV` | `data/il12_reporter.csv` | IL-12測定値CSV |
-
-例えばゲノムが `data/my_genomes/` にある場合：
-
-```bash
-# pipeline.sh
-GENOME_DIR="data/my_genomes"   # ← ここだけ変える
-```
-
-これだけで全ステップに反映される。
-
-#### KoFamScan データベース
-
-| 変数 | 説明 |
-|---|---|
-| `KOFAMSCAN_DIR` | kofamscan 実行ファイルのディレクトリ |
-| `KOFAMSCAN_KO_LIST` | `ko_list` ファイルのパス |
-| `KOFAMSCAN_PROFILES` | `profiles/` ディレクトリのパス |
-
-#### conda 環境
-
-| 変数 | 説明 |
-|---|---|
-| `CONDA_BASE` | conda のインストール先 (`conda info --base` で確認) |
-| `CONDA_ENV_PROKKA` | Prokka 用 conda 環境名 |
-| `CONDA_ENV_KOFAM` | KoFamScan 用 conda 環境名 |
-| `CONDA_ENV_ML` | Python ML ツール用 conda 環境名 |
-
-### 主なパラメータ（pipeline.sh）
+## 主なパラメータ（pipeline.sh）
 
 | 変数 | デフォルト | 説明 |
 |---|---|---|
