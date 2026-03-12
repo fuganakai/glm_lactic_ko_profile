@@ -2,7 +2,7 @@
 # Snakefile  —  KO profile パイプライン (スタンドアロン版)
 #
 # 入力: {genome_dir}/{sample}.fna
-# 出力: Lasso / Ridge による IL-12 予測
+# 出力: Lasso / Ridge / RF による IL-12 予測
 #
 # 実行: pipeline.sh を使うこと
 # ============================================================
@@ -11,7 +11,12 @@ configfile: "config/pipeline.yaml"
 
 from pathlib import Path
 
-SAMPLES = [s.strip() for s in Path(config["sample_list"]).read_text().splitlines() if s.strip()]
+# pipeline.sh が事前に生成した filtered_samples.txt を読み込む
+# （pipeline.sh が 00_filter_samples.py を Snakemake より先に実行する）
+# ※ filtered_samples.txt が存在しない場合は空リストで初期化（--dag 表示用）
+_filtered = Path("data/filtered_samples.txt")
+SAMPLES = [s.strip() for s in _filtered.read_text().splitlines() if s.strip()] \
+    if _filtered.exists() else []
 RESULTS = config["results_dir"]
 
 # ============================================================
@@ -31,6 +36,29 @@ rule all:
         f"{RESULTS}/figures/feature_importance_heatmap.png",
         f"{RESULTS}/figures/prevalence_vs_importance.png",
         f"{RESULTS}/figures/cumulative_importance.png"
+
+
+# ============================================================
+# Step 0: サンプルフィルタリング
+#   OUTPUT: data/filtered_samples.txt
+# ============================================================
+rule filter_samples:
+    input:
+        il12_csv = config["il12_csv"]
+    output:
+        filtered = "data/filtered_samples.txt"
+    log:
+        "logs/00_filter_samples.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/00_filter_samples.py \
+            --genome-dir     {config[genome_dir]} \
+            --il12-csv       {input.il12_csv} \
+            --min-genome-len {config[min_genome_len]} \
+            --output         {output.filtered} > {log} 2>&1
+        """
 
 
 # ============================================================
@@ -110,8 +138,7 @@ rule kofamscan_to_csv:
 # ============================================================
 rule make_ko_profile:
     input:
-        ko_csvs     = expand("data/ko_annotations/{sample}_genome.csv", sample=SAMPLES),
-        sample_list = config["sample_list"]
+        ko_csvs = expand("data/ko_annotations/{sample}_genome.csv", sample=SAMPLES)
     output:
         profile = "data/ko_profile.csv",
         ko_list = "data/ko_list.txt"
@@ -123,7 +150,6 @@ rule make_ko_profile:
         conda activate {config[conda_env_ml]}
         python scripts/04_make_ko_profile.py \
             --ko-annot-dir   data/ko_annotations \
-            --sample-list    {input.sample_list} \
             --min-samples-ko {config[min_samples_ko]} \
             --output-profile {output.profile} \
             --output-ko-list {output.ko_list} > {log} 2>&1
@@ -139,9 +165,8 @@ rule make_ko_profile:
 # ============================================================
 rule bench_models:
     input:
-        ko_profile  = "data/ko_profile.csv",
-        il12_csv    = config["il12_csv"],
-        sample_list = config["sample_list"]
+        ko_profile = "data/ko_profile.csv",
+        il12_csv   = config["il12_csv"]
     output:
         lasso        = f"{RESULTS}/sample_predictions_lasso.csv",
         ridge        = f"{RESULTS}/sample_predictions_ridge.csv",
@@ -158,7 +183,6 @@ rule bench_models:
         python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
             --il12-csv       {input.il12_csv} \
-            --sample-list    {input.sample_list} \
             --output-dir     {RESULTS} \
             --model          all \
             --random-state   {config[random_state]} \

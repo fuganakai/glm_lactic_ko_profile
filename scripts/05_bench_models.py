@@ -8,7 +8,6 @@ Lasso / Ridge / RandomForest で IL-12 を予測する。
 INPUT:
     --ko-profile-csv  ko_profile.csv  (sample × KO バイナリ行列)
     --il12-csv        IL-12 reporter CSV
-    --sample-list     サンプルIDリスト
     --output-dir      結果出力先
 
 OUTPUT:
@@ -47,7 +46,6 @@ def main():
     parser = argparse.ArgumentParser(description="KO profile × Lasso/Ridge/RF ベンチマーク")
     parser.add_argument("--ko-profile-csv", required=True)
     parser.add_argument("--il12-csv",       required=True)
-    parser.add_argument("--sample-list",    required=True)
     parser.add_argument("--output-dir",     default=None,
                         help="結果出力先 (default: get_output(__file__) or output/models/)")
     parser.add_argument("--model",          default="all",
@@ -72,15 +70,13 @@ def main():
                  for _, r in il12_df.iterrows()
                  if not np.isnan(float(r["IL-12 Reporter (cps)"]))}
 
-    sample_list = [l.strip() for l in Path(args.sample_list).read_text().splitlines() if l.strip()]
-    valid_sids  = [s for s in sample_list if s in il12_dict]
-
     profile_df = pd.read_csv(args.ko_profile_csv)
     profile_df["sample_id"] = profile_df["sample_id"].astype(str)
     profile_df = profile_df.set_index("sample_id")
 
     # ── サンプル & KO フィルタリング ───────────────────────────────
-    common_sids = [s for s in valid_sids if s in profile_df.index]
+    # ko_profile.csv の全サンプルのうち IL-12 データがあるものを使用
+    common_sids = [s for s in profile_df.index if s in il12_dict]
     ko_cols = [c for c in profile_df.columns
                if profile_df.loc[common_sids, c].sum() >= args.min_samples_ko]
 
