@@ -25,6 +25,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
+
+try:
+    from shadow_helper import get_output
+    _has_shadow = True
+except ImportError:
+    _has_shadow = False
+
+
+def _default_results_dir():
+    if _has_shadow:
+        return str(get_output(__file__))
+    return str(Path(__file__).parent.parent / "output" / "models")
 matplotlib.use("Agg")  # ヘッドレス環境対応
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -336,14 +348,16 @@ def plot_cumulative_importance(imp_df: pd.DataFrame, output_path: str):
 # ────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="ベンチマーク結果の可視化")
-    parser.add_argument("--results-dir", required=True,
-                        help="05_bench_models.py の出力ディレクトリ")
+    parser.add_argument("--results-dir", default=None,
+                        help="05_bench_models.py の出力ディレクトリ (default: get_output(__file__))")
     parser.add_argument("--output-dir",  default=None,
                         help="図の出力先 (default: {results_dir}/figures)")
     parser.add_argument("--top-n-ko",    type=int, default=20,
                         help="ランキング表示上位KO数 (default: 20)")
     args = parser.parse_args()
 
+    if args.results_dir is None:
+        args.results_dir = _default_results_dir()
     out_dir = args.output_dir or os.path.join(args.results_dir, "figures")
     os.makedirs(out_dir, exist_ok=True)
 
