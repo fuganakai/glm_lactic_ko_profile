@@ -30,13 +30,26 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score
 
+try:
+    from shadow_helper import get_output
+    _has_shadow = True
+except ImportError:
+    _has_shadow = False
+
+
+def _default_output_dir():
+    if _has_shadow:
+        return str(get_output(__file__))
+    return str(Path(__file__).parent.parent / "output" / "models")
+
 
 def main():
     parser = argparse.ArgumentParser(description="KO profile × Lasso/Ridge/RF ベンチマーク")
     parser.add_argument("--ko-profile-csv", required=True)
     parser.add_argument("--il12-csv",       required=True)
     parser.add_argument("--sample-list",    required=True)
-    parser.add_argument("--output-dir",     required=True)
+    parser.add_argument("--output-dir",     default=None,
+                        help="結果出力先 (default: get_output(__file__) or output/models/)")
     parser.add_argument("--model",          default="all",
                         choices=["lasso", "ridge", "rf", "all"],
                         help="使用するモデル (default: all)")
@@ -49,6 +62,8 @@ def main():
                         help="feature_importances.csv に出力する上位KO数 (default: 30)")
     args = parser.parse_args()
 
+    if args.output_dir is None:
+        args.output_dir = _default_output_dir()
     os.makedirs(args.output_dir, exist_ok=True)
 
     # ── データ読み込み ──────────────────────────────────────────────
