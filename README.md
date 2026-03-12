@@ -10,7 +10,9 @@ embedding (DNABERT-2 / ESM-2) は使いません。GPU 不要。
 ## 概要
 
 ```
-{sample}.fna  (ゲノム配列)
+genome_dir/*.fna  +  il12_reporter.csv
+    ↓ 00_filter_samples.py      — 共通サンプル抽出 & ゲノム長フィルタ
+filtered_samples.txt
     ↓ 01_run_prokka.sh          — Prokka によるタンパク質予測
 {sample}.faa  (アミノ酸配列)
     ↓ 02_run_kofamscan.sh       — KoFamScan による KO アノテーション
@@ -123,6 +125,7 @@ GENOME_DIR="data/my_genomes"   # ← ここだけ変える
 
 | 変数 | デフォルト | 説明 |
 |---|---|---|
+| `MIN_GENOME_LEN` | 160000 | サンプルフィルタ: 最小ゲノム長 (bp)。これ未満のサンプルは除外される |
 | `MIN_SAMPLES_KO` | 5 | KO をモデルに含める最低サンプル数 |
 | `RANDOM_STATE` | 42 | 乱数シード |
 | `N_ESTIMATORS` | 500 | Random Forest の木の数 |
@@ -151,6 +154,7 @@ results/models/
     └── cumulative_importance.png      # [図7] 累積寄与度カーブ (Pareto)
 
 data/
+├── filtered_samples.txt           # Step 0 が生成するフィルタ済みサンプルリスト
 ├── prokka_out/{sample}/           # Prokka 出力
 ├── kofamscan_out/{sample}.txt     # KoFamScan 出力
 ├── ko_annotations/{sample}_genome.csv
@@ -178,6 +182,7 @@ data/
 
 | スクリプト | 役割 |
 |---|---|
+| `scripts/00_filter_samples.py` | genome_dir と IL-12 CSV の共通サンプルを抽出し、ゲノム長でフィルタリング |
 | `scripts/01_run_prokka.sh` | .fna → .faa (Prokka) |
 | `scripts/02_run_kofamscan.sh` | .faa → KO アノテーション (KoFamScan) |
 | `scripts/03_kofamscan_to_csv.py` | KoFamScan出力 → CSV |

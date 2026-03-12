@@ -2,7 +2,7 @@
 # Snakefile  —  KO profile パイプライン (スタンドアロン版)
 #
 # 入力: {genome_dir}/{sample}.fna
-# 出力: Lasso / Ridge による IL-12 予測
+# 出力: Lasso / Ridge / RF による IL-12 予測
 #
 # 実行: pipeline.sh を使うこと
 # ============================================================
@@ -11,8 +11,12 @@ configfile: "config/pipeline.yaml"
 
 from pathlib import Path
 
-# genome_dir 内の .fna ファイルからサンプルを自動検出
-SAMPLES = [p.stem for p in sorted(Path(config["genome_dir"]).glob("*.fna"))]
+# pipeline.sh が事前に生成した filtered_samples.txt を読み込む
+# （pipeline.sh が 00_filter_samples.py を Snakemake より先に実行する）
+# ※ filtered_samples.txt が存在しない場合は空リストで初期化（--dag 表示用）
+_filtered = Path("data/filtered_samples.txt")
+SAMPLES = [s.strip() for s in _filtered.read_text().splitlines() if s.strip()] \
+    if _filtered.exists() else []
 RESULTS = config["results_dir"]
 
 # ============================================================
@@ -32,6 +36,29 @@ rule all:
         f"{RESULTS}/figures/feature_importance_heatmap.png",
         f"{RESULTS}/figures/prevalence_vs_importance.png",
         f"{RESULTS}/figures/cumulative_importance.png"
+
+
+# ============================================================
+# Step 0: サンプルフィルタリング
+#   OUTPUT: data/filtered_samples.txt
+# ============================================================
+rule filter_samples:
+    input:
+        il12_csv = config["il12_csv"]
+    output:
+        filtered = "data/filtered_samples.txt"
+    log:
+        "logs/00_filter_samples.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/00_filter_samples.py \
+            --genome-dir     {config[genome_dir]} \
+            --il12-csv       {input.il12_csv} \
+            --min-genome-len {config[min_genome_len]} \
+            --output         {output.filtered} > {log} 2>&1
+        """
 
 
 # ============================================================

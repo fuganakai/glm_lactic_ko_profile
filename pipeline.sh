@@ -38,6 +38,7 @@ MAX_JOBS=20
 
 # --- パラメータ ---
 MIN_SAMPLES_KO=5
+MIN_GENOME_LEN=160000   # サンプルフィルタ: 最小ゲノム長 (bp)
 RANDOM_STATE=42
 N_ESTIMATORS=500        # RandomForest の木の数
 TOP_N_KO=20             # 可視化で表示する上位KO数
@@ -83,6 +84,7 @@ conda_env_prokka:     "${CONDA_ENV_PROKKA}"
 conda_env_kofam:      "${CONDA_ENV_KOFAM}"
 conda_env_ml:         "${CONDA_ENV_ML}"
 min_samples_ko:       ${MIN_SAMPLES_KO}
+min_genome_len:       ${MIN_GENOME_LEN}
 random_state:         ${RANDOM_STATE}
 n_estimators:         ${N_ESTIMATORS}
 top_n_ko:             ${TOP_N_KO}
@@ -93,7 +95,22 @@ echo "[pipeline.sh] config/pipeline.yaml を生成しました"
 echo "[pipeline.sh] 結果出力先: ${RESULTS_DIR}"
 
 # ============================================================
-# [5] DAG可視化モード
+# [5] Step 0: サンプルフィルタリング (Snakemake より先に実行)
+#     filtered_samples.txt を生成してから Snakemake に渡す
+# ============================================================
+if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
+    echo "[pipeline.sh] Step 0: サンプルフィルタリング"
+    source "${CONDA_BASE}/etc/profile.d/conda.sh"
+    conda activate "${CONDA_ENV_ML}"
+    python scripts/00_filter_samples.py \
+        --genome-dir     "${GENOME_DIR}" \
+        --il12-csv       "${IL12_CSV}" \
+        --min-genome-len "${MIN_GENOME_LEN}" \
+        --output         data/filtered_samples.txt
+fi
+
+# ============================================================
+# [7] DAG可視化モード
 # ============================================================
 if [ "$SHOW_DAG" = true ]; then
     snakemake --dag --snakefile Snakefile --configfile config/pipeline.yaml \
@@ -103,7 +120,7 @@ if [ "$SHOW_DAG" = true ]; then
 fi
 
 # ============================================================
-# [6] 実行
+# [8] 実行
 # ============================================================
 if [ "$USE_SGE" = true ]; then
     SNAKEMAKE_CMD="snakemake \
