@@ -33,7 +33,6 @@ CONDA_ENV_ML="ml_env"                  # ← 要変更
 
 # --- SGE設定 (ローカル実行なら USE_SGE=false のまま) ---
 USE_SGE=false
-SGE_GROUP="tga-yamadalab2025"
 MAX_JOBS=20
 
 # --- パラメータ ---
@@ -126,7 +125,7 @@ if [ "$USE_SGE" = true ]; then
     SNAKEMAKE_CMD="snakemake \
         --snakefile Snakefile \
         --configfile config/pipeline.yaml \
-        --cluster 'qsub -g ${SGE_GROUP} -cwd -pe smp 8 -l mem_req=16G -o logs/ -e logs/' \
+        --cluster 'qsub -cwd -pe smp 8 -l mem_req=16G -o logs/ -e logs/' \
         --jobs ${MAX_JOBS} \
         --latency-wait 60 \
         --keep-going \

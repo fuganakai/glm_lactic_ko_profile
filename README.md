@@ -172,11 +172,12 @@ SGE クラスターで実行する場合は以下も変更します:
 
 ```bash
 USE_SGE=true
-SGE_GROUP="your-group-name"   # qsub -g に渡すグループ名
-MAX_JOBS=20                   # 同時投入ジョブ数
+MAX_JOBS=20   # 同時投入ジョブ数
 ```
 
 ローカル実行なら `USE_SGE=false`（デフォルト）のままで構いません。
+
+> **sun サーバーの場合:** `qsub ファイル名` のみで投入できます。`-g`（グループ指定）は不要です。
 
 ---
 
