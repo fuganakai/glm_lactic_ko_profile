@@ -90,8 +90,11 @@ ls /db/kofamscan/
 ```bash
 conda create -n ml_env python=3.10
 conda activate ml_env
+conda install -c conda-forge setuptools
 pip install -r requirements.txt
 ```
+
+> **Note:** `setuptools` は conda でインストールします。pip のみだと `pkg_resources` が見つからず snakemake が起動しない場合があります。
 
 `requirements.txt` の内容:
 
@@ -100,6 +103,8 @@ pandas>=1.5
 numpy>=1.23
 scikit-learn>=1.2
 snakemake>=7.0
+setuptools
+pulp<2.8
 matplotlib>=3.6
 seaborn>=0.12
 ```
