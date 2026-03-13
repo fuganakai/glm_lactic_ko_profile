@@ -34,6 +34,10 @@ CONDA_ENV_ML="ml_env"                  # ← 要変更
 # --- SGE設定 (ローカル実行なら USE_SGE=false のまま) ---
 USE_SGE=false
 MAX_JOBS=20
+# qsub に追加で渡すオプション (空でも可)
+# 例: QSUB_EXTRA_OPTS="-l d_rt=24:00:00"  # 実行時間制限
+#     QSUB_EXTRA_OPTS="-m e -M your@email"  # 完了メール
+QSUB_EXTRA_OPTS=""
 
 # --- パラメータ ---
 MIN_SAMPLES_KO=5
@@ -125,7 +129,8 @@ if [ "$USE_SGE" = true ]; then
     SNAKEMAKE_CMD="snakemake \
         --snakefile Snakefile \
         --configfile config/pipeline.yaml \
-        --cluster 'qsub -cwd -pe smp 8 -l mem_req=16G -o logs/ -e logs/' \
+        --cluster-config config/cluster.yaml \
+        --cluster 'qsub ${QSUB_EXTRA_OPTS} {cluster.options} -cwd -o logs/ -e logs/' \
         --jobs ${MAX_JOBS} \
         --latency-wait 60 \
         --keep-going \

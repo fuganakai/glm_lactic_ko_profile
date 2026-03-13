@@ -168,16 +168,42 @@ conda info --base
 
 ### Step 7: SGE クラスターの設定（ローカル実行なら不要）
 
-SGE クラスターで実行する場合は以下も変更します:
+SGE クラスターで実行する場合は `pipeline.sh` の以下を変更します:
 
 ```bash
 USE_SGE=true
 MAX_JOBS=20   # 同時投入ジョブ数
+
+# qsub に全ジョブ共通で追加するオプション (不要なら空のまま)
+# 例: 実行時間制限をつける場合
+QSUB_EXTRA_OPTS="-l d_rt=24:00:00"
+# 例: 複数オプションを指定する場合
+QSUB_EXTRA_OPTS="-l d_rt=24:00:00 -m e -M your@email"
 ```
 
 ローカル実行なら `USE_SGE=false`（デフォルト）のままで構いません。
 
-> **sun サーバーの場合:** `qsub ファイル名` のみで投入できます。`-g`（グループ指定）は不要です。
+> **sun サーバーの場合:** `qsub ファイル名` のみで投入できます。`-g`（グループ指定）は不要なので `QSUB_EXTRA_OPTS=""` のままで動きます。
+
+#### ジョブごとのリソース設定
+
+各ステップのCPU数・メモリは `config/cluster.yaml` で設定します。
+
+```yaml
+# 例: run_prokka のCPUを増やす場合
+run_prokka:
+  options: >-
+    -pe smp 16
+    -l mem_req=32G
+    -l h_vmem=32G
+```
+
+実行されるコマンドのイメージ:
+
+```
+qsub {QSUB_EXTRA_OPTS} {cluster.options} -cwd -o logs/ -e logs/ <jobscript>
+#     ↑ pipeline.sh で設定  ↑ cluster.yaml で設定
+```
 
 ---
 
