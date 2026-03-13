@@ -139,6 +139,7 @@ if [ "$USE_SGE" = true ]; then
         --latency-wait 60 \
         --keep-going \
         --rerun-incomplete \
+        --scheduler greedy \
         --printshellcmds"
 else
     SNAKEMAKE_CMD="snakemake \
@@ -147,6 +148,7 @@ else
         --cores 8 \
         --keep-going \
         --rerun-incomplete \
+        --scheduler greedy \
         --printshellcmds"
 fi
 
