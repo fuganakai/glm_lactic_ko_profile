@@ -23,7 +23,6 @@ result_path = output_dir / "result.csv"
 
 ## コーディング規約
 
-- Python: PEP8 準拠
 - 関数・変数名は英語
 - コメントは日本語可
 
