@@ -12,8 +12,7 @@
 __default__:
   options: >-
     -pe smp 1
-    -l mem_req=8G
-    -l h_vmem=8G
+    -l mem=8G
 
 # ============================================================
 # Step 0: サンプルフィルタリング — 軽量
@@ -21,8 +20,7 @@ __default__:
 filter_samples:
   options: >-
     -pe smp 1
-    -l mem_req=4G
-    -l h_vmem=4G
+    -l mem=4G
 
 # ============================================================
 # Step 1: Prokka — CPUヘビー
@@ -30,8 +28,7 @@ filter_samples:
 run_prokka:
   options: >-
     -pe smp 8
-    -l mem_req=16G
-    -l h_vmem=16G
+    -l mem=16G
 
 # ============================================================
 # Step 2: KoFamScan — CPUヘビー (並列対応)
@@ -39,8 +36,7 @@ run_prokka:
 run_kofamscan:
   options: >-
     -pe smp 8
-    -l mem_req=16G
-    -l h_vmem=16G
+    -l mem=16G
 
 # ============================================================
 # Step 3: KoFamScan → CSV — 軽量
@@ -48,8 +44,7 @@ run_kofamscan:
 kofamscan_to_csv:
   options: >-
     -pe smp 1
-    -l mem_req=4G
-    -l h_vmem=4G
+    -l mem=4G
 
 # ============================================================
 # Step 4: KO profile 作成 — メモリ中程度 (全サンプル集約)
@@ -57,8 +52,7 @@ kofamscan_to_csv:
 make_ko_profile:
   options: >-
     -pe smp 1
-    -l mem_req=16G
-    -l h_vmem=16G
+    -l mem=16G
 
 # ============================================================
 # Step 5: Lasso / Ridge / Random Forest 学習 — CPUヘビー
@@ -66,8 +60,7 @@ make_ko_profile:
 bench_models:
   options: >-
     -pe smp 16
-    -l mem_req=64G
-    -l h_vmem=64G
+    -l mem=64G
 
 # ============================================================
 # Step 6: 可視化 — 軽量
@@ -75,5 +68,4 @@ bench_models:
 visualize:
   options: >-
     -pe smp 1
-    -l mem_req=8G
-    -l h_vmem=8G
+    -l mem=8G
