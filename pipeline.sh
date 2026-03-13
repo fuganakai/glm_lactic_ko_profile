@@ -98,13 +98,17 @@ echo "[pipeline.sh] config/pipeline.yaml を生成しました"
 echo "[pipeline.sh] 結果出力先: ${RESULTS_DIR}"
 
 # ============================================================
-# [5] Step 0: サンプルフィルタリング (Snakemake より先に実行)
+# [5] conda ml_env をアクティベート (snakemake はここに入っている)
+# ============================================================
+source "${CONDA_BASE}/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV_ML}"
+
+# ============================================================
+# [6] Step 0: サンプルフィルタリング (Snakemake より先に実行)
 #     filtered_samples.txt を生成してから Snakemake に渡す
 # ============================================================
 if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
     echo "[pipeline.sh] Step 0: サンプルフィルタリング"
-    source "${CONDA_BASE}/etc/profile.d/conda.sh"
-    conda activate "${CONDA_ENV_ML}"
     python scripts/00_filter_samples.py \
         --genome-dir     "${GENOME_DIR}" \
         --il12-csv       "${IL12_CSV}" \
