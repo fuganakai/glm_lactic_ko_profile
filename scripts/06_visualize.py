@@ -44,8 +44,8 @@ import seaborn as sns
 
 # ─── スタイル設定 ──────────────────────────────────────────────────
 sns.set_theme(style="whitegrid", font_scale=1.1)
-MODEL_COLORS = {"lasso": "#4C72B0", "ridge": "#DD8452", "rf": "#55A868"}
-MODEL_LABELS = {"lasso": "Lasso", "ridge": "Ridge", "rf": "Random Forest"}
+MODEL_COLORS = {"lasso": "#4C72B0", "ridge": "#DD8452", "rf": "#55A868", "mlp": "#C44E52"}
+MODEL_LABELS = {"lasso": "Lasso", "ridge": "Ridge", "rf": "Random Forest", "mlp": "MLP"}
 DPI = 150
 
 
@@ -55,7 +55,7 @@ def load_data(results_dir: str):
     r2_df = pd.read_csv(rd / "r2_scores.csv")
 
     pred_dfs = {}
-    for m in ("lasso", "ridge", "rf"):
+    for m in ("lasso", "ridge", "rf", "mlp"):
         f = rd / f"sample_predictions_{m}.csv"
         if f.exists():
             pred_dfs[m] = pd.read_csv(f)
@@ -112,7 +112,7 @@ def plot_r2_comparison(r2_df: pd.DataFrame, output_path: str):
 
     ax.set_xlabel("Fold")
     ax.set_ylabel("R² Score")
-    ax.set_title("R² Score per Fold — Lasso / Ridge / Random Forest")
+    ax.set_title("R² Score per Fold — Lasso / Ridge / Random Forest / MLP")
     ax.set_xticks(x)
     ax.set_xticklabels([f"Fold {f}" for f in folds])
     ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left", fontsize=9)
@@ -199,12 +199,12 @@ def plot_r2_cv_distribution(r2_df: pd.DataFrame, output_path: str):
         lambda m: MODEL_LABELS.get(m, m)
     )
 
-    models_order = [MODEL_LABELS.get(m, m) for m in ["lasso", "ridge", "rf"]
+    models_order = [MODEL_LABELS.get(m, m) for m in ["lasso", "ridge", "rf", "mlp"]
                     if m in fold_df["model"].unique()]
 
-    fig, ax = plt.subplots(figsize=(7, 5))
+    fig, ax = plt.subplots(figsize=(8, 5))
     palette = {MODEL_LABELS.get(m, m): MODEL_COLORS.get(m, None)
-               for m in ["lasso", "ridge", "rf"]}
+               for m in ["lasso", "ridge", "rf", "mlp"]}
 
     sns.violinplot(
         data=fold_df, x="model_label", y="r2",

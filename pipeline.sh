@@ -43,7 +43,9 @@ QSUB_EXTRA_OPTS=""
 MIN_SAMPLES_KO=5
 MIN_GENOME_LEN=160000   # サンプルフィルタ: 最小ゲノム長 (bp)
 RANDOM_STATE=42
-N_ESTIMATORS=500        # RandomForest の木の数
+N_ESTIMATORS=500        # RandomForest の木の数 (Optuna 非使用時のフォールバック)
+N_TRIALS_RF=50          # RandomForest の Optuna チューニング試行数
+N_TRIALS_MLP=80         # MLP の Optuna チューニング試行数
 TOP_N_KO=20             # 可視化で表示する上位KO数
 RESULTS_DIR="results/models"
 
@@ -90,6 +92,8 @@ min_samples_ko:       ${MIN_SAMPLES_KO}
 min_genome_len:       ${MIN_GENOME_LEN}
 random_state:         ${RANDOM_STATE}
 n_estimators:         ${N_ESTIMATORS}
+n_trials_rf:          ${N_TRIALS_RF}
+n_trials_mlp:         ${N_TRIALS_MLP}
 top_n_ko:             ${TOP_N_KO}
 results_dir:          "${RESULTS_DIR}"
 EOF

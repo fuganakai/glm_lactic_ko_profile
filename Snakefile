@@ -27,8 +27,11 @@ rule all:
         f"{RESULTS}/sample_predictions_lasso.csv",
         f"{RESULTS}/sample_predictions_ridge.csv",
         f"{RESULTS}/sample_predictions_rf.csv",
+        f"{RESULTS}/sample_predictions_mlp.csv",
         f"{RESULTS}/r2_scores.csv",
         f"{RESULTS}/feature_importances.csv",
+        f"{RESULTS}/best_params_rf.csv",
+        f"{RESULTS}/best_params_mlp.csv",
         f"{RESULTS}/figures/r2_comparison.png",
         f"{RESULTS}/figures/pred_vs_actual.png",
         f"{RESULTS}/figures/feature_importance_ranking.png",
@@ -168,12 +171,15 @@ rule bench_models:
         ko_profile = "data/ko_profile.csv",
         il12_csv   = config["il12_csv"]
     output:
-        lasso        = f"{RESULTS}/sample_predictions_lasso.csv",
-        ridge        = f"{RESULTS}/sample_predictions_ridge.csv",
-        rf           = f"{RESULTS}/sample_predictions_rf.csv",
-        r2_scores    = f"{RESULTS}/r2_scores.csv",
-        importances  = f"{RESULTS}/feature_importances.csv",
-        prevalence   = f"{RESULTS}/ko_prevalence.csv"
+        lasso           = f"{RESULTS}/sample_predictions_lasso.csv",
+        ridge           = f"{RESULTS}/sample_predictions_ridge.csv",
+        rf              = f"{RESULTS}/sample_predictions_rf.csv",
+        mlp             = f"{RESULTS}/sample_predictions_mlp.csv",
+        r2_scores       = f"{RESULTS}/r2_scores.csv",
+        importances     = f"{RESULTS}/feature_importances.csv",
+        prevalence      = f"{RESULTS}/ko_prevalence.csv",
+        best_params_rf  = f"{RESULTS}/best_params_rf.csv",
+        best_params_mlp = f"{RESULTS}/best_params_mlp.csv"
     log:
         f"logs/05_bench_models.log"
     shell:
@@ -186,7 +192,9 @@ rule bench_models:
             --output-dir     {RESULTS} \
             --model          all \
             --random-state   {config[random_state]} \
-            --n-estimators   {config[n_estimators]} > {log} 2>&1
+            --n-estimators   {config[n_estimators]} \
+            --n-trials-rf    {config[n_trials_rf]} \
+            --n-trials-mlp   {config[n_trials_mlp]} > {log} 2>&1
         """
 
 
@@ -201,7 +209,8 @@ rule visualize:
         prevalence  = f"{RESULTS}/ko_prevalence.csv",
         pred_lasso  = f"{RESULTS}/sample_predictions_lasso.csv",
         pred_ridge  = f"{RESULTS}/sample_predictions_ridge.csv",
-        pred_rf     = f"{RESULTS}/sample_predictions_rf.csv"
+        pred_rf     = f"{RESULTS}/sample_predictions_rf.csv",
+        pred_mlp    = f"{RESULTS}/sample_predictions_mlp.csv"
     output:
         fig1 = f"{RESULTS}/figures/r2_comparison.png",
         fig2 = f"{RESULTS}/figures/pred_vs_actual.png",
