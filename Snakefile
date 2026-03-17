@@ -2,7 +2,7 @@
 # Snakefile  —  KO profile パイプライン (スタンドアロン版)
 #
 # 入力: {genome_dir}/{sample}.fna
-# 出力: Lasso / Ridge / RF による IL-12 予測
+# 出力: Lasso / Ridge / RF / MLP による各レスポンス変数の予測
 #
 # 実行: pipeline.sh を使うこと
 # ============================================================
@@ -17,6 +17,13 @@ from pathlib import Path
 _filtered = Path("data/filtered_samples.txt")
 SAMPLES = [s.strip() for s in _filtered.read_text().splitlines() if s.strip()] \
     if _filtered.exists() else []
+
+# response_csv_dir にある *.csv のステム名をデータセット名として使用
+# 例: data/response_csvs/il12_reporter.csv → dataset = "il12_reporter"
+_resp_dir = Path(config["response_csv_dir"])
+DATASETS = [p.stem for p in sorted(_resp_dir.glob("*.csv"))] \
+    if _resp_dir.exists() else []
+
 RESULTS = config["results_dir"]
 
 # ============================================================
@@ -24,30 +31,28 @@ RESULTS = config["results_dir"]
 # ============================================================
 rule all:
     input:
-        f"{RESULTS}/sample_predictions_lasso.csv",
-        f"{RESULTS}/sample_predictions_ridge.csv",
-        f"{RESULTS}/sample_predictions_rf.csv",
-        f"{RESULTS}/sample_predictions_mlp.csv",
-        f"{RESULTS}/r2_scores.csv",
-        f"{RESULTS}/feature_importances.csv",
-        f"{RESULTS}/best_params_rf.csv",
-        f"{RESULTS}/best_params_mlp.csv",
-        f"{RESULTS}/figures/r2_comparison.png",
-        f"{RESULTS}/figures/pred_vs_actual.png",
-        f"{RESULTS}/figures/feature_importance_ranking.png",
-        f"{RESULTS}/figures/r2_cv_distribution.png",
-        f"{RESULTS}/figures/feature_importance_heatmap.png",
-        f"{RESULTS}/figures/prevalence_vs_importance.png",
-        f"{RESULTS}/figures/cumulative_importance.png"
+        expand(f"{RESULTS}/{{dataset}}/sample_predictions_lasso.csv", dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/sample_predictions_ridge.csv", dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/sample_predictions_rf.csv",   dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/sample_predictions_mlp.csv",  dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/r2_scores.csv",               dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/feature_importances.csv",     dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/best_params_rf.csv",          dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/best_params_mlp.csv",         dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/r2_comparison.png",           dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/pred_vs_actual.png",          dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/feature_importance_ranking.png", dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/r2_cv_distribution.png",      dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/feature_importance_heatmap.png", dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/prevalence_vs_importance.png", dataset=DATASETS),
+        expand(f"{RESULTS}/{{dataset}}/figures/cumulative_importance.png",    dataset=DATASETS)
 
 
 # ============================================================
-# Step 0: サンプルフィルタリング
+# Step 0: サンプルフィルタリング（ゲノム長のみ）
 #   OUTPUT: data/filtered_samples.txt
 # ============================================================
 rule filter_samples:
-    input:
-        il12_csv = config["il12_csv"]
     output:
         filtered = "data/filtered_samples.txt"
     log:
@@ -58,7 +63,6 @@ rule filter_samples:
         conda activate {config[conda_env_ml]}
         python scripts/00_filter_samples.py \
             --genome-dir     {config[genome_dir]} \
-            --il12-csv       {input.il12_csv} \
             --min-genome-len {config[min_genome_len]} \
             --output         {output.filtered} > {log} 2>&1
         """
@@ -160,36 +164,34 @@ rule make_ko_profile:
 
 
 # ============================================================
-# Step 5: Lasso / Ridge / RandomForest 予測
-#   OUTPUT: {results_dir}/sample_predictions_{lasso,ridge,rf}.csv
-#           {results_dir}/r2_scores.csv
-#           {results_dir}/feature_importances.csv
-#           {results_dir}/ko_prevalence.csv
+# Step 5: Lasso / Ridge / RandomForest / MLP 予測
+#   データセットごとに実行 (wildcards.dataset = CSV のステム名)
+#   OUTPUT: {results_dir}/{dataset}/...
 # ============================================================
 rule bench_models:
     input:
-        ko_profile = "data/ko_profile.csv",
-        il12_csv   = config["il12_csv"]
+        ko_profile   = "data/ko_profile.csv",
+        response_csv = lambda w: f"{config['response_csv_dir']}/{w.dataset}.csv"
     output:
-        lasso           = f"{RESULTS}/sample_predictions_lasso.csv",
-        ridge           = f"{RESULTS}/sample_predictions_ridge.csv",
-        rf              = f"{RESULTS}/sample_predictions_rf.csv",
-        mlp             = f"{RESULTS}/sample_predictions_mlp.csv",
-        r2_scores       = f"{RESULTS}/r2_scores.csv",
-        importances     = f"{RESULTS}/feature_importances.csv",
-        prevalence      = f"{RESULTS}/ko_prevalence.csv",
-        best_params_rf  = f"{RESULTS}/best_params_rf.csv",
-        best_params_mlp = f"{RESULTS}/best_params_mlp.csv"
+        lasso           = f"{RESULTS}/{{dataset}}/sample_predictions_lasso.csv",
+        ridge           = f"{RESULTS}/{{dataset}}/sample_predictions_ridge.csv",
+        rf              = f"{RESULTS}/{{dataset}}/sample_predictions_rf.csv",
+        mlp             = f"{RESULTS}/{{dataset}}/sample_predictions_mlp.csv",
+        r2_scores       = f"{RESULTS}/{{dataset}}/r2_scores.csv",
+        importances     = f"{RESULTS}/{{dataset}}/feature_importances.csv",
+        prevalence      = f"{RESULTS}/{{dataset}}/ko_prevalence.csv",
+        best_params_rf  = f"{RESULTS}/{{dataset}}/best_params_rf.csv",
+        best_params_mlp = f"{RESULTS}/{{dataset}}/best_params_mlp.csv"
     log:
-        f"logs/05_bench_models.log"
+        f"logs/05_bench_models/{{dataset}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
-            --il12-csv       {input.il12_csv} \
-            --output-dir     {RESULTS} \
+            --response-csv   {input.response_csv} \
+            --output-dir     {RESULTS}/{wildcards.dataset} \
             --model          all \
             --random-state   {config[random_state]} \
             --n-estimators   {config[n_estimators]} \
@@ -200,33 +202,33 @@ rule bench_models:
 
 # ============================================================
 # Step 6: 可視化
-#   OUTPUT: {results_dir}/figures/*.png
+#   OUTPUT: {results_dir}/{dataset}/figures/*.png
 # ============================================================
 rule visualize:
     input:
-        r2_scores   = f"{RESULTS}/r2_scores.csv",
-        importances = f"{RESULTS}/feature_importances.csv",
-        prevalence  = f"{RESULTS}/ko_prevalence.csv",
-        pred_lasso  = f"{RESULTS}/sample_predictions_lasso.csv",
-        pred_ridge  = f"{RESULTS}/sample_predictions_ridge.csv",
-        pred_rf     = f"{RESULTS}/sample_predictions_rf.csv",
-        pred_mlp    = f"{RESULTS}/sample_predictions_mlp.csv"
+        r2_scores   = f"{RESULTS}/{{dataset}}/r2_scores.csv",
+        importances = f"{RESULTS}/{{dataset}}/feature_importances.csv",
+        prevalence  = f"{RESULTS}/{{dataset}}/ko_prevalence.csv",
+        pred_lasso  = f"{RESULTS}/{{dataset}}/sample_predictions_lasso.csv",
+        pred_ridge  = f"{RESULTS}/{{dataset}}/sample_predictions_ridge.csv",
+        pred_rf     = f"{RESULTS}/{{dataset}}/sample_predictions_rf.csv",
+        pred_mlp    = f"{RESULTS}/{{dataset}}/sample_predictions_mlp.csv"
     output:
-        fig1 = f"{RESULTS}/figures/r2_comparison.png",
-        fig2 = f"{RESULTS}/figures/pred_vs_actual.png",
-        fig3 = f"{RESULTS}/figures/feature_importance_ranking.png",
-        fig4 = f"{RESULTS}/figures/r2_cv_distribution.png",
-        fig5 = f"{RESULTS}/figures/feature_importance_heatmap.png",
-        fig6 = f"{RESULTS}/figures/prevalence_vs_importance.png",
-        fig7 = f"{RESULTS}/figures/cumulative_importance.png"
+        fig1 = f"{RESULTS}/{{dataset}}/figures/r2_comparison.png",
+        fig2 = f"{RESULTS}/{{dataset}}/figures/pred_vs_actual.png",
+        fig3 = f"{RESULTS}/{{dataset}}/figures/feature_importance_ranking.png",
+        fig4 = f"{RESULTS}/{{dataset}}/figures/r2_cv_distribution.png",
+        fig5 = f"{RESULTS}/{{dataset}}/figures/feature_importance_heatmap.png",
+        fig6 = f"{RESULTS}/{{dataset}}/figures/prevalence_vs_importance.png",
+        fig7 = f"{RESULTS}/{{dataset}}/figures/cumulative_importance.png"
     log:
-        f"logs/06_visualize.log"
+        f"logs/06_visualize/{{dataset}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/06_visualize.py \
-            --results-dir {RESULTS} \
-            --output-dir  {RESULTS}/figures \
+            --results-dir {RESULTS}/{wildcards.dataset} \
+            --output-dir  {RESULTS}/{wildcards.dataset}/figures \
             --top-n-ko    {config[top_n_ko]} > {log} 2>&1
         """

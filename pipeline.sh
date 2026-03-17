@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
-# pipeline.sh  —  KO profile → Lasso/Ridge/RF 予測パイプライン
+# pipeline.sh  —  KO profile → Lasso/Ridge/RF/MLP 予測パイプライン
 #
-# 入力: {genome_dir}/{sample}.fna
-# フロー: Prokka → KoFamScan → KO profile → Lasso/Ridge/RF → 可視化
+# 入力: {genome_dir}/{sample}.fna  +  {response_csv_dir}/*.csv
+# フロー: Prokka → KoFamScan → KO profile → モデル × データセット → 可視化
 #
 # 使い方:
 #   bash pipeline.sh              # 通常実行
@@ -17,12 +17,12 @@ set -euo pipefail
 # ============================================================
 
 # --- 入力データ ---
-GENOME_DIR="data/genomes"              # {sample}.fna が入ったディレクトリ ← 要変更
-IL12_CSV="data/il12_reporter.csv"      # ← 要変更
+GENOME_DIR="data/genomes"                  # {sample}.fna が入ったディレクトリ ← 要変更
+RESPONSE_CSV_DIR="data/response_csvs"      # il12_reporter.csv, tnf_reporter.csv 等 ← 要変更
 
 # --- KoFamScan データベース ---
-KOFAMSCAN_DIR="/path/to/kofamscan/bin"      # ← 要変更
-KOFAMSCAN_KO_LIST="/path/to/kofamscan/ko_list"   # ← 要変更
+KOFAMSCAN_DIR="/path/to/kofamscan/bin"          # ← 要変更
+KOFAMSCAN_KO_LIST="/path/to/kofamscan/ko_list"  # ← 要変更
 KOFAMSCAN_PROFILES="/path/to/kofamscan/profiles" # ← 要変更
 
 # --- conda 環境 ---
@@ -69,8 +69,11 @@ done
 if [ ! -d "$GENOME_DIR" ]; then
     echo "[ERROR] GENOME_DIR が見つかりません: $GENOME_DIR" >&2; exit 1
 fi
-if [ ! -f "$IL12_CSV" ]; then
-    echo "[ERROR] IL12_CSV が見つかりません: $IL12_CSV" >&2; exit 1
+if [ ! -d "$RESPONSE_CSV_DIR" ]; then
+    echo "[ERROR] RESPONSE_CSV_DIR が見つかりません: $RESPONSE_CSV_DIR" >&2; exit 1
+fi
+if [ -z "$(ls "${RESPONSE_CSV_DIR}"/*.csv 2>/dev/null)" ]; then
+    echo "[ERROR] RESPONSE_CSV_DIR に .csv ファイルが見つかりません: $RESPONSE_CSV_DIR" >&2; exit 1
 fi
 
 mkdir -p config logs
@@ -80,7 +83,7 @@ mkdir -p config logs
 # ============================================================
 cat > config/pipeline.yaml <<EOF
 genome_dir:           "${GENOME_DIR}"
-il12_csv:             "${IL12_CSV}"
+response_csv_dir:     "${RESPONSE_CSV_DIR}"
 kofamscan_dir:        "${KOFAMSCAN_DIR}"
 kofamscan_ko_list:    "${KOFAMSCAN_KO_LIST}"
 kofamscan_profiles:   "${KOFAMSCAN_PROFILES}"
@@ -100,6 +103,8 @@ EOF
 
 echo "[pipeline.sh] config/pipeline.yaml を生成しました"
 echo "[pipeline.sh] 結果出力先: ${RESULTS_DIR}"
+echo "[pipeline.sh] レスポンスCSVディレクトリ: ${RESPONSE_CSV_DIR}"
+echo "[pipeline.sh] データセット: $(ls "${RESPONSE_CSV_DIR}"/*.csv | xargs -I{} basename {} .csv | tr '\n' ' ')"
 
 # ============================================================
 # [5] conda ml_env をアクティベート (snakemake はここに入っている)
@@ -109,13 +114,12 @@ conda activate "${CONDA_ENV_ML}"
 
 # ============================================================
 # [6] Step 0: サンプルフィルタリング (Snakemake より先に実行)
-#     filtered_samples.txt を生成してから Snakemake に渡す
+#     ゲノム長のみでフィルタリング。レスポンスCSVとの照合は Step 5 が担当。
 # ============================================================
 if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
-    echo "[pipeline.sh] Step 0: サンプルフィルタリング"
+    echo "[pipeline.sh] Step 0: サンプルフィルタリング（ゲノム長のみ）"
     python scripts/00_filter_samples.py \
         --genome-dir     "${GENOME_DIR}" \
-        --il12-csv       "${IL12_CSV}" \
         --min-genome-len "${MIN_GENOME_LEN}" \
         --output         data/filtered_samples.txt
 fi
