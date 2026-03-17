@@ -84,7 +84,7 @@ if [ -n "$SPLIT_INFO_DIR" ] && [ ! -d "$SPLIT_INFO_DIR" ]; then
     echo "[ERROR] SPLIT_INFO_DIR が見つかりません: $SPLIT_INFO_DIR" >&2; exit 1
 fi
 
-mkdir -p config logs
+mkdir -p config
 
 # ============================================================
 # [4] 試行ディレクトリを決定
@@ -93,19 +93,16 @@ _PROJ_NAME="glm_lactic_ko_profile"
 _BASE_OUT="output/${_PROJ_NAME}"
 
 if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
-    mkdir -p "${_BASE_OUT}"
-    _LAST_N=$(ls -d "${_BASE_OUT}"/[0-9][0-9][0-9] 2>/dev/null | sort -V | tail -1 | xargs -r basename)
-    if [ -n "${_LAST_N}" ]; then
-        RESULTS_DIR="${_BASE_OUT}/$(printf '%03d' $(( 10#${_LAST_N} + 1 )))"
-    else
-        RESULTS_DIR="${_BASE_OUT}/001"
-    fi
-    mkdir -p "${RESULTS_DIR}"
-    echo "[pipeline.sh] 試行ディレクトリ: ${RESULTS_DIR}"
+    TRIAL_DIR="$(new-trial-dir)"
+    echo "[pipeline.sh] 試行ディレクトリ: ${TRIAL_DIR}"
+    LOGS_SGE="${TRIAL_DIR}/logs/sge"
+    mkdir -p "${LOGS_SGE}"
 else
     # dry-run / dag 時はダミーパス（実ディレクトリは作らない）
-    RESULTS_DIR="${_BASE_OUT}/preview"
+    TRIAL_DIR="${_BASE_OUT}/preview"
+    LOGS_SGE="${TRIAL_DIR}/logs/sge"
 fi
+RESULTS_DIR="${TRIAL_DIR}"
 
 # ============================================================
 # [5] config/pipeline.yaml を生成
@@ -189,8 +186,9 @@ if [ "$USE_SGE" = true ]; then
     SNAKEMAKE_CMD="snakemake \
         --snakefile Snakefile \
         --configfile config/pipeline.yaml \
+        --config trial_dir=${TRIAL_DIR} \
         --cluster-config config/cluster.yaml \
-        --cluster 'qsub ${QSUB_EXTRA_OPTS} {cluster.options} -cwd -o logs/ -e logs/' \
+        --cluster 'qsub ${QSUB_EXTRA_OPTS} {cluster.options} -cwd -o ${LOGS_SGE}/ -e ${LOGS_SGE}/' \
         --jobs ${MAX_JOBS} \
         --latency-wait 60 \
         --keep-going \
@@ -201,6 +199,7 @@ else
     SNAKEMAKE_CMD="snakemake \
         --snakefile Snakefile \
         --configfile config/pipeline.yaml \
+        --config trial_dir=${TRIAL_DIR} \
         --cores 8 \
         --keep-going \
         --rerun-incomplete \

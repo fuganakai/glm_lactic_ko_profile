@@ -28,6 +28,7 @@ DATASETS = [p.stem for p in sorted(_resp_dir.glob("*.csv"))] \
     if _resp_dir.exists() else []
 
 RESULTS = config["results_dir"]
+TRIAL_DIR = config["trial_dir"]
 
 # ── 共有 fold split モードの設定 ───────────────────────────────
 _split_dir_str = config.get("split_info_dir", "")
@@ -68,7 +69,7 @@ rule filter_samples:
     output:
         filtered = f"{_PROC}/filtered_samples.txt"
     log:
-        "logs/00_filter_samples.log"
+        f"{TRIAL_DIR}/logs/00_filter_samples.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -91,7 +92,7 @@ rule run_prokka:
     params:
         outdir = lambda w: f"{_PROC}/prokka_out/{w.sample}"
     log:
-        "logs/01_prokka/{sample}.log"
+        f"{TRIAL_DIR}/logs/01_prokka/{{sample}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -113,7 +114,7 @@ rule run_kofamscan:
     output:
         txt = f"{_PROC}/kofamscan_out/{{sample}}.txt"
     log:
-        "logs/02_kofamscan/{sample}.log"
+        f"{TRIAL_DIR}/logs/02_kofamscan/{{sample}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -138,7 +139,7 @@ rule kofamscan_to_csv:
     output:
         csv = f"{_PROC}/ko_annotations/{{sample}}_genome.csv"
     log:
-        "logs/03_kofamscan_to_csv/{sample}.log"
+        f"{TRIAL_DIR}/logs/03_kofamscan_to_csv/{{sample}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -160,7 +161,7 @@ rule make_ko_profile:
     params:
         ko_annot_dir = f"{_PROC}/ko_annotations"
     log:
-        "logs/04_make_ko_profile.log"
+        f"{TRIAL_DIR}/logs/04_make_ko_profile.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -192,7 +193,7 @@ rule bench_models:
         best_params_rf  = f"{RESULTS}/{{dataset}}/best_params_rf.csv",
         best_params_mlp = f"{RESULTS}/{{dataset}}/best_params_mlp.csv"
     log:
-        f"logs/05_bench_models/{{dataset}}.log"
+        f"{TRIAL_DIR}/logs/05_bench_models/{{dataset}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -233,7 +234,7 @@ rule bench_models_ext:
         best_params_rf  = f"{RESULTS}/{{dataset}}/seed{{seed}}/best_params_rf.csv",
         best_params_mlp = f"{RESULTS}/{{dataset}}/seed{{seed}}/best_params_mlp.csv"
     log:
-        f"logs/05_bench_models_ext/{{dataset}}_seed{{seed}}.log"
+        f"{TRIAL_DIR}/logs/05_bench_models_ext/{{dataset}}_seed{{seed}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -268,7 +269,7 @@ rule aggregate_seeds:
         imp_summary = f"{RESULTS}/{{dataset}}/summary/feature_importance_mean.csv",
         pred_all    = f"{RESULTS}/{{dataset}}/summary/sample_predictions_all.csv"
     log:
-        f"logs/07_aggregate_seeds/{{dataset}}.log"
+        f"{TRIAL_DIR}/logs/07_aggregate_seeds/{{dataset}}.log"
     params:
         seeds = " ".join(str(s) for s in SEEDS)
     shell:
@@ -302,7 +303,7 @@ rule visualize:
         fig6 = f"{RESULTS}/{{dataset}}/figures/prevalence_vs_importance.png",
         fig7 = f"{RESULTS}/{{dataset}}/figures/cumulative_importance.png"
     log:
-        f"logs/06_visualize/{{dataset}}.log"
+        f"{TRIAL_DIR}/logs/06_visualize/{{dataset}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh
@@ -335,7 +336,7 @@ rule visualize_ext:
         fig6 = f"{RESULTS}/{{dataset}}/seed{{seed}}/figures/prevalence_vs_importance.png",
         fig7 = f"{RESULTS}/{{dataset}}/seed{{seed}}/figures/cumulative_importance.png"
     log:
-        f"logs/06_visualize_ext/{{dataset}}_seed{{seed}}.log"
+        f"{TRIAL_DIR}/logs/06_visualize_ext/{{dataset}}_seed{{seed}}.log"
     shell:
         """
         source {config[conda_base]}/etc/profile.d/conda.sh

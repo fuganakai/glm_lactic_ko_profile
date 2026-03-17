@@ -40,17 +40,14 @@ from sklearn.model_selection import KFold
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).parent))
-from _trial_dir import new_trial_dir
+import subprocess
 
 # Optuna でハイパーパラメータをチューニングするモデル
 _OPTUNA_MODELS = {"rf", "mlp"}
 
 
 def _default_output_dir():
-    project_root = Path(__file__).parents[1]
-    return str(new_trial_dir(project_root))
+    return subprocess.check_output(["new-trial-dir"], text=True).strip()
 
 
 def _tune_with_optuna(X_tr, y_tr, model_type, inner_cv, n_trials, random_state, fold_idx):
