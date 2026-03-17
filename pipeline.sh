@@ -94,7 +94,7 @@ _BASE_OUT="output/${_PROJ_NAME}"
 
 if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
     mkdir -p "${_BASE_OUT}"
-    _LAST_N=$(ls -d "${_BASE_OUT}"/[0-9][0-9][0-9] 2>/dev/null | sort -V | tail -1 | xargs -r basename)
+    _LAST_N=$(ls -d "${_BASE_OUT}"/[0-9][0-9][0-9] 2>/dev/null | sort -V | tail -1 | xargs -r basename) || true
     if [ -n "${_LAST_N}" ]; then
         RESULTS_DIR="${_BASE_OUT}/$(printf '%03d' $(( 10#${_LAST_N} + 1 )))"
     else
