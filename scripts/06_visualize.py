@@ -26,14 +26,11 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).parent))
-from _trial_dir import new_trial_dir
+import subprocess
 
 
 def _default_results_dir():
-    project_root = Path(__file__).parents[1]
-    return str(new_trial_dir(project_root))
+    return subprocess.check_output(["new-trial-dir"], text=True).strip()
 matplotlib.use("Agg")  # ヘッドレス環境対応
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
