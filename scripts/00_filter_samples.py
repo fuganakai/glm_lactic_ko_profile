@@ -39,8 +39,9 @@ def main():
                         help="{sample}.fna が入ったディレクトリ")
     parser.add_argument("--min-genome-len", type=int, default=160_000,
                         help="最小ゲノム長 (bp, default: 160000)")
-    parser.add_argument("--output",         default="data/filtered_samples.txt",
-                        help="出力ファイルパス (default: data/filtered_samples.txt)")
+    parser.add_argument("--output",
+                        default="data/glm_lactic_ko_profile/processed/filtered_samples.txt",
+                        help="出力ファイルパス")
     args = parser.parse_args()
 
     genome_dir = Path(args.genome_dir)

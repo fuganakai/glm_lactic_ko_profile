@@ -15,8 +15,10 @@ configfile: "config/pipeline.yaml"
 
 from pathlib import Path
 
+_PROC = "data/glm_lactic_ko_profile/processed"
+
 # ── filtered_samples.txt（pipeline.sh が事前に生成）────────────
-_filtered = Path("data/filtered_samples.txt")
+_filtered = Path(f"{_PROC}/filtered_samples.txt")
 SAMPLES = [s.strip() for s in _filtered.read_text().splitlines() if s.strip()] \
     if _filtered.exists() else []
 
@@ -64,7 +66,7 @@ rule all:
 # ============================================================
 rule filter_samples:
     output:
-        filtered = "data/filtered_samples.txt"
+        filtered = f"{_PROC}/filtered_samples.txt"
     log:
         "logs/00_filter_samples.log"
     shell:
@@ -85,7 +87,9 @@ rule run_prokka:
     input:
         fna = lambda w: f"{config['genome_dir']}/{w.sample}.fna"
     output:
-        faa = "data/prokka_out/{sample}/{sample}.faa"
+        faa = f"{_PROC}/prokka_out/{{sample}}/{{sample}}.faa"
+    params:
+        outdir = lambda w: f"{_PROC}/prokka_out/{w.sample}"
     log:
         "logs/01_prokka/{sample}.log"
     shell:
@@ -95,7 +99,7 @@ rule run_prokka:
         bash scripts/01_run_prokka.sh \
             --fna        {input.fna} \
             --sample     {wildcards.sample} \
-            --output-dir data/prokka_out/{wildcards.sample} \
+            --output-dir {params.outdir} \
             --cpus       ${{NSLOTS:-1}} > {log} 2>&1
         """
 
@@ -105,9 +109,9 @@ rule run_prokka:
 # ============================================================
 rule run_kofamscan:
     input:
-        faa = "data/prokka_out/{sample}/{sample}.faa"
+        faa = f"{_PROC}/prokka_out/{{sample}}/{{sample}}.faa"
     output:
-        txt = "data/kofamscan_out/{sample}.txt"
+        txt = f"{_PROC}/kofamscan_out/{{sample}}.txt"
     log:
         "logs/02_kofamscan/{sample}.log"
     shell:
@@ -130,9 +134,9 @@ rule run_kofamscan:
 # ============================================================
 rule kofamscan_to_csv:
     input:
-        txt = "data/kofamscan_out/{sample}.txt"
+        txt = f"{_PROC}/kofamscan_out/{{sample}}.txt"
     output:
-        csv = "data/ko_annotations/{sample}_genome.csv"
+        csv = f"{_PROC}/ko_annotations/{{sample}}_genome.csv"
     log:
         "logs/03_kofamscan_to_csv/{sample}.log"
     shell:
@@ -149,10 +153,12 @@ rule kofamscan_to_csv:
 # ============================================================
 rule make_ko_profile:
     input:
-        ko_csvs = expand("data/ko_annotations/{sample}_genome.csv", sample=SAMPLES)
+        ko_csvs = expand(f"{_PROC}/ko_annotations/{{sample}}_genome.csv", sample=SAMPLES)
     output:
-        profile = "data/ko_profile.csv",
-        ko_list = "data/ko_list.txt"
+        profile = f"{_PROC}/ko_profile.csv",
+        ko_list = f"{_PROC}/ko_list.txt"
+    params:
+        ko_annot_dir = f"{_PROC}/ko_annotations"
     log:
         "logs/04_make_ko_profile.log"
     shell:
@@ -160,7 +166,7 @@ rule make_ko_profile:
         source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/04_make_ko_profile.py \
-            --ko-annot-dir   data/ko_annotations \
+            --ko-annot-dir   {params.ko_annot_dir} \
             --min-samples-ko {config[min_samples_ko]} \
             --output-profile {output.profile} \
             --output-ko-list {output.ko_list} > {log} 2>&1
@@ -173,7 +179,7 @@ rule make_ko_profile:
 # ============================================================
 rule bench_models:
     input:
-        ko_profile   = "data/ko_profile.csv",
+        ko_profile   = f"{_PROC}/ko_profile.csv",
         response_csv = lambda w: f"{config['response_csv_dir']}/{w.dataset}.csv"
     output:
         lasso           = f"{RESULTS}/{{dataset}}/sample_predictions_lasso.csv",
@@ -210,7 +216,7 @@ rule bench_models:
 # ============================================================
 rule bench_models_ext:
     input:
-        ko_profile   = "data/ko_profile.csv",
+        ko_profile   = f"{_PROC}/ko_profile.csv",
         response_csv = lambda w: f"{config['response_csv_dir']}/{w.dataset}.csv",
         split_tsv    = lambda w: (
             f"{config['split_info_dir']}/{w.dataset}/"

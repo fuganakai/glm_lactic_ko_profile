@@ -17,8 +17,8 @@ set -euo pipefail
 # ============================================================
 
 # --- 入力データ ---
-GENOME_DIR="data/genomes"                  # {sample}.fna が入ったディレクトリ ← 要変更
-RESPONSE_CSV_DIR="data/response_csvs"      # il12_reporter.csv, tnf_reporter.csv 等 ← 要変更
+GENOME_DIR="data/glm_lactic_ko_profile/raw/genomes"              # {sample}.fna が入ったディレクトリ ← 要変更
+RESPONSE_CSV_DIR="data/glm_lactic_ko_profile/raw/response_csvs"  # il12_reporter.csv, tnf_reporter.csv 等 ← 要変更
 
 # --- KoFamScan データベース ---
 KOFAMSCAN_DIR="/path/to/kofamscan/bin"          # ← 要変更
@@ -137,7 +137,7 @@ if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
     python scripts/00_filter_samples.py \
         --genome-dir     "${GENOME_DIR}" \
         --min-genome-len "${MIN_GENOME_LEN}" \
-        --output         data/filtered_samples.txt
+        --output         data/glm_lactic_ko_profile/processed/filtered_samples.txt
 fi
 
 # ============================================================
