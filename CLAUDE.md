@@ -130,12 +130,30 @@ project/
 │   ├── 01_xxxx.sh       # ステップ1（Snakemake から呼ばれる）
 │   ├── 02_xxxx.py       # ステップ2 ...
 │   └── check_progress.sh  # 進捗確認スクリプト（必ず作成）
-├── logs/
-│   └── 01_xxxx/{sample}.log
 └── data/
     └── {project_name}/
         ├── raw/         # 生データ（コミット不要）
         └── processed/   # 中間ファイル（コミット不要）
+```
+
+ログは **試行ディレクトリの下** に配置する（試行間の混在を防ぐため）：
+
+```
+output/
+└── {project_name}/
+    ├── 001/
+    │   ├── run_info.txt
+    │   ├── logs/
+    │   │   ├── 01_xxxx/          # Snakemake log: ディレクティブのログ
+    │   │   │   └── {sample}.log
+    │   │   └── sge/              # SGEジョブのstdout/stderr
+    │   │       ├── {job}.o{id}
+    │   │       └── {job}.e{id}
+    │   └── (出力ファイル群)
+    └── 002/
+        ├── run_info.txt
+        ├── logs/
+        └── (出力ファイル群)
 ```
 
 ### pipeline.sh の設計
@@ -149,15 +167,35 @@ project/
 ### SGE クラスタ実行（USE_SGE=true）
 
 - `config/cluster.yaml` にルール別のCPU・メモリを定義する
-- Snakemake のクラスタオプション：
+- `pipeline.sh` で試行ディレクトリを先に決め、その下の `logs/sge/` をSGEに渡す：
 
 ```bash
---cluster-config config/cluster.yaml \
---cluster 'qsub ${QSUB_EXTRA_OPTS} {cluster.options} -cwd -o logs/ -e logs/' \
---jobs ${MAX_JOBS} \
---latency-wait 60 \
---keep-going \
---rerun-incomplete
+# pipeline.sh 内で trial_dir を決定する
+TRIAL_DIR="$(python3 scripts/new_trial_dir.py)"   # 試行番号ディレクトリを作成して返す
+LOGS_SGE="${TRIAL_DIR}/logs/sge"
+mkdir -p "${LOGS_SGE}"
+
+snakemake \
+  --config trial_dir="${TRIAL_DIR}" \
+  --cluster-config config/cluster.yaml \
+  --cluster "qsub ${QSUB_EXTRA_OPTS} {cluster.options} -cwd -o ${LOGS_SGE}/ -e ${LOGS_SGE}/" \
+  --jobs ${MAX_JOBS} \
+  --latency-wait 60 \
+  --keep-going \
+  --rerun-incomplete
+```
+
+- Snakefile では `config["trial_dir"]` を参照してログパスを構築する：
+
+```python
+TRIAL_DIR = config["trial_dir"]
+
+rule some_rule:
+    input:  ...
+    output: ...
+    log:    os.path.join(TRIAL_DIR, "logs", "01_xxxx", "{sample}.log")
+    shell:
+        "some_command {input} > {output} 2> {log}"
 ```
 
 ### 進捗確認スクリプト
@@ -173,3 +211,80 @@ project/
 ```
 
 監視は別ターミナルで `watch -n 30 bash scripts/check_progress.sh` で行う。
+
+### Snakemakeのログ種別（3種類）
+
+Snakemakeで扱うログには以下の3種類がある。混同しないこと：
+
+| 種類 | 場所 | 内容 | 特徴 |
+|------|------|------|------|
+| **① `log:` ディレクティブ** | Snakefile の `log:` で指定したファイル | ルールのコマンドの stdout/stderr | **ルール失敗後も残る**。エラー解析の第一候補 |
+| **② SGEジョブログ** | `qsub -o ... -e ...` で指定したディレクトリ | SGEが生成する `{name}.o{jobid}` / `{name}.e{jobid}` | ジョブのキュー情報・実行ノード・時間なども含む |
+| **③ Snakemake本体ログ** | `.snakemake/log/` | DAG構築・ルール実行の履歴 | Snakemake自体のデバッグ用 |
+
+**エラー時に見る順番**: ① `log:` のファイル → ② SGEジョブの `.e{jobid}` ファイル → ③ `.snakemake/log/`
+
+---
+
+## シェルスクリプトの落とし穴と対処法
+
+### 落とし穴1: `set -euo pipefail` + `ls` のグロブ不一致
+
+**現象**: スクリプトがエラーメッセージなしに黙って終了する。
+
+**原因**:
+
+```bash
+# 初回実行など、対象ディレクトリが存在しない場合
+_LAST_N=$(ls -d "${_BASE_OUT}"/[0-9][0-9][0-9] 2>/dev/null | sort -V | tail -1 | xargs -r basename)
+#         ↑ マッチなし → 終了コード2         ↑ 2>/dev/null はエラーメッセージを消すだけ
+# pipefail により パイプ全体の終了コードも非ゼロ
+# -e により スクリプト即終了（ログにも何も書かれない）
+```
+
+**解決策**:
+
+```bash
+# 方法1: || true で失敗を無視（最小変更）
+_LAST_N=$(ls -d "${_BASE_OUT}"/[0-9][0-9][0-9] 2>/dev/null | sort -V | tail -1 | xargs -r basename || true)
+
+# 方法2: find を使う（マッチなしでも終了コード0）
+_LAST_N=$(find "${_BASE_OUT}" -maxdepth 1 -type d -name '[0-9][0-9][0-9]' 2>/dev/null \
+          | sort -V | tail -1 | xargs -r basename || true)
+```
+
+### 落とし穴2: `-e` で止まったエラーがログに残らない
+
+**原因**: `set -e` はスクリプトを即終了させるが、エラーログへの書き込み処理が実行されない。
+
+**対処法: `trap ERR` でエラー行番号をログに残す**
+
+シェルスクリプトの先頭に以下を追加する：
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+LOGFILE="pipeline.log"   # ログファイルパスを変数で管理
+
+# エラー時にログに行番号とコマンドを記録してから終了
+trap 'echo "[$(date +%Y-%m-%dT%H:%M:%S)] ERROR at line $LINENO: $BASH_COMMAND" \
+      | tee -a "$LOGFILE" >&2' ERR
+```
+
+これにより `set -e` で終了する直前に「どの行で何のコマンドが失敗したか」がログに書き込まれる。
+
+### 落とし穴3: ログに何も書かれていないのにスクリプトが終了する
+
+原因の調べ方：
+
+```bash
+# 1. スクリプトを bash -x で実行して全コマンドをトレース
+bash -x pipeline.sh 2>&1 | tee debug.log
+
+# 2. set -e を一時的に無効化して最後まで実行させる
+bash +e pipeline.sh
+
+# 3. $? で各コマンドの終了コードを確認
+some_command; echo "exit code: $?"
+```
