@@ -2,13 +2,81 @@
 
 ## 出力ディレクトリ
 
-解析結果や生成ファイルは `get_output(__file__)` で取得したHDDパスに保存すること。
+`output/` はプロジェクトルートにある HDD へのシンボリックリンク（`init-repo` で設定）。
+
+### ディレクトリ構造
+
+出力は **試行番号付きサブディレクトリ** に保存する：
+
+```
+output/
+└── {project_name}/
+    ├── 001/
+    │   ├── run_info.txt   ← Git・実行環境の記録（自動生成）
+    │   └── (出力ファイル群)
+    ├── 002/
+    │   ├── run_info.txt
+    │   └── (出力ファイル群)
+    └── ...
+```
+
+- `{project_name}` はリポジトリのルートディレクトリ名
+- 試行番号は既存ディレクトリの最大値 + 1（ゼロ埋め3桁）
+
+### run_info.txt の内容
+
+各試行ディレクトリ作成時に以下を記録する：
+
+```
+date:    2026-03-17 10:30:00
+branch:  main
+commit:  a1b2c3d  Add new analysis step
+config:
+  (config/pipeline.yaml の内容をここに貼付、なければ省略)
+```
+
+### 試行ディレクトリの作成（Python）
+
+スクリプト・パイプラインの先頭で次のように呼ぶ：
 
 ```python
-from shadow_helper import get_output
+from pathlib import Path
+import subprocess, datetime, shutil
 
-output_dir = get_output(__file__)
-result_path = output_dir / "result.csv"
+def new_trial_dir(project_root: Path) -> Path:
+    project_name = project_root.name
+    base = project_root / "output" / project_name
+    base.mkdir(parents=True, exist_ok=True)
+    existing = sorted(p for p in base.iterdir() if p.is_dir() and p.name.isdigit())
+    n = int(existing[-1].name) + 1 if existing else 1
+    trial = base / f"{n:03d}"
+    trial.mkdir()
+
+    # run_info.txt
+    branch = subprocess.check_output(
+        ["git", "-C", str(project_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        text=True).strip()
+    commit = subprocess.check_output(
+        ["git", "-C", str(project_root), "log", "-1", "--format=%h  %s"],
+        text=True).strip()
+    info = [
+        f"date:    {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
+        f"branch:  {branch}",
+        f"commit:  {commit}",
+    ]
+    cfg = project_root / "config" / "pipeline.yaml"
+    if cfg.exists():
+        info += ["config:", cfg.read_text().rstrip()]
+    (trial / "run_info.txt").write_text("\n".join(info) + "\n")
+    return trial
+```
+
+使い方：
+
+```python
+PROJECT_ROOT = Path(__file__).parents[1]  # プロジェクトルートまでの階層を調整
+trial_dir = new_trial_dir(PROJECT_ROOT)
+result_path = trial_dir / "result.csv"
 ```
 
 ## ジョブ投入
