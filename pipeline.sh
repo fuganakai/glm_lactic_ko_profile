@@ -31,6 +31,12 @@ CONDA_ENV_PROKKA="prokka_env"          # ← 要変更
 CONDA_ENV_KOFAM="kofam_env"           # ← 要変更
 CONDA_ENV_ML="ml_env"                  # ← 要変更
 
+# --- 共有 fold split (オプション) ---
+# 他の研究者と揃えたい場合に設定する。空("")のままにするとデフォルト(内部KFold)で動作。
+# ディレクトリ構造: {SPLIT_INFO_DIR}/{dataset}/{dataset}_5fold_seed{N}.tsv
+SPLIT_INFO_DIR=""           # 例: "/path/to/criterion_2603/split_info_5fold_random"
+SEEDS="40 41 42 43 44 45 46 47 48 49"  # 使用する seed (スペース区切り)
+
 # --- SGE設定 (ローカル実行なら USE_SGE=false のまま) ---
 USE_SGE=false
 MAX_JOBS=20
@@ -75,6 +81,9 @@ fi
 if [ -z "$(ls "${RESPONSE_CSV_DIR}"/*.csv 2>/dev/null)" ]; then
     echo "[ERROR] RESPONSE_CSV_DIR に .csv ファイルが見つかりません: $RESPONSE_CSV_DIR" >&2; exit 1
 fi
+if [ -n "$SPLIT_INFO_DIR" ] && [ ! -d "$SPLIT_INFO_DIR" ]; then
+    echo "[ERROR] SPLIT_INFO_DIR が見つかりません: $SPLIT_INFO_DIR" >&2; exit 1
+fi
 
 mkdir -p config logs
 
@@ -99,12 +108,19 @@ n_trials_rf:          ${N_TRIALS_RF}
 n_trials_mlp:         ${N_TRIALS_MLP}
 top_n_ko:             ${TOP_N_KO}
 results_dir:          "${RESULTS_DIR}"
+split_info_dir:       "${SPLIT_INFO_DIR}"
+seeds:                [$(echo "$SEEDS" | tr ' ' ',')]
 EOF
 
 echo "[pipeline.sh] config/pipeline.yaml を生成しました"
 echo "[pipeline.sh] 結果出力先: ${RESULTS_DIR}"
 echo "[pipeline.sh] レスポンスCSVディレクトリ: ${RESPONSE_CSV_DIR}"
 echo "[pipeline.sh] データセット: $(ls "${RESPONSE_CSV_DIR}"/*.csv | xargs -I{} basename {} .csv | tr '\n' ' ')"
+if [ -n "$SPLIT_INFO_DIR" ]; then
+    echo "[pipeline.sh] 共有 fold split モード: ${SPLIT_INFO_DIR}  seeds: ${SEEDS}"
+else
+    echo "[pipeline.sh] デフォルトモード: 内部 KFold(5)"
+fi
 
 # ============================================================
 # [5] conda ml_env をアクティベート (snakemake はここに入っている)

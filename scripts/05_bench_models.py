@@ -13,6 +13,8 @@ INPUT:
     --ko-profile-csv  ko_profile.csv  (sample × KO バイナリ行列)
     --response-csv    レスポンス変数 CSV (sample_id 列 + 数値列1つ以上)
     --response-col    使用するレスポンス列名 (省略時は sample_id 以外の最初の数値列)
+    --split-tsv       共有 fold split TSV (sample_id 列 + fold 列)
+                      省略時: 内部 KFold(5, shuffle, random_state)
     --output-dir      結果出力先
 
 OUTPUT:
@@ -134,6 +136,8 @@ def main():
                         help="レスポンス変数 CSV (sample_id 列必須)")
     parser.add_argument("--response-col",  default=None,
                         help="レスポンス列名 (省略時: sample_id 以外の最初の数値列)")
+    parser.add_argument("--split-tsv",     default=None,
+                        help="共有 fold split TSV (sample_id, fold 列。省略時: 内部 KFold)")
     parser.add_argument("--output-dir",    default=None,
                         help="結果出力先 (default: get_output(__file__) or output/models/)")
     parser.add_argument("--model",          default="all",
@@ -186,6 +190,19 @@ def main():
 
     # ── サンプル & KO フィルタリング ───────────────────────────────
     common_sids = [s for s in profile_df.index if s in resp_dict]
+
+    # split-tsv が指定された場合: そのサンプルに絞り込み、fold 番号を取得
+    fold_arr = None
+    if args.split_tsv:
+        split_df = pd.read_csv(args.split_tsv, sep="\t")
+        split_df["sample_id"] = split_df["sample_id"].astype(str)
+        split_dict = dict(zip(split_df["sample_id"], split_df["fold"].astype(int)))
+        before = len(common_sids)
+        common_sids = [s for s in common_sids if s in split_dict]
+        print(f"[bench_models] split-tsv 適用: {before} → {len(common_sids)} サンプル "
+              f"({before - len(common_sids)} 件除外)")
+        fold_arr = np.array([split_dict[s] for s in common_sids])
+
     ko_cols = [c for c in profile_df.columns
                if profile_df.loc[common_sids, c].sum() >= args.min_samples_ko]
 
@@ -219,10 +236,27 @@ def main():
     models_to_run = make_models(args.model)
     n_trials_map = {"rf": args.n_trials_rf, "mlp": args.n_trials_mlp}
 
-    # 外側 5-fold / 内側 3-fold
-    outer_cv = KFold(n_splits=5, shuffle=True, random_state=args.random_state)
+    # 外側 CV: split-tsv の fold を使用 / なければ内部 KFold(5)
+    # 内側は常に KFold(3) (Optuna ハイパーパラメータ探索用)
     inner_cv = KFold(n_splits=3, shuffle=True, random_state=args.random_state)
     sids_arr = np.array(common_sids)
+
+    if fold_arr is not None:
+        unique_folds = sorted(set(fold_arr))
+        print(f"[bench_models] 共有 fold split 使用: {len(unique_folds)} folds "
+              f"({sorted(set(fold_arr))})")
+
+        def _outer_cv_iter():
+            for fi in unique_folds:
+                te_idx = np.where(fold_arr == fi)[0]
+                tr_idx = np.where(fold_arr != fi)[0]
+                yield fi, tr_idx, te_idx
+    else:
+        outer_cv_kf = KFold(n_splits=5, shuffle=True, random_state=args.random_state)
+
+        def _outer_cv_iter():
+            for fi, (tr_idx, te_idx) in enumerate(outer_cv_kf.split(sids_arr)):
+                yield fi, tr_idx, te_idx
 
     all_r2_rows = []
     # 寄与度の累積は Lasso / Ridge / RF のみ（MLP は解釈困難なため省略）
@@ -241,7 +275,7 @@ def main():
 
         print(f"[bench_models] === {model_name.upper()} ===")
 
-        for fold_idx, (tr_idx, te_idx) in enumerate(outer_cv.split(sids_arr)):
+        for fold_idx, tr_idx, te_idx in _outer_cv_iter():
             X_tr, y_tr = X[tr_idx], y[tr_idx]
             X_te, y_te = X[te_idx], y[te_idx]
 
