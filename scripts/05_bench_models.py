@@ -40,20 +40,17 @@ from sklearn.model_selection import KFold
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
-try:
-    from shadow_helper import get_output
-    _has_shadow = True
-except ImportError:
-    _has_shadow = False
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).parent))
+from _trial_dir import new_trial_dir
 
 # Optuna でハイパーパラメータをチューニングするモデル
 _OPTUNA_MODELS = {"rf", "mlp"}
 
 
 def _default_output_dir():
-    if _has_shadow:
-        return str(get_output(__file__))
-    return str(Path(__file__).parent.parent / "output" / "models")
+    project_root = Path(__file__).parents[1]
+    return str(new_trial_dir(project_root))
 
 
 def _tune_with_optuna(X_tr, y_tr, model_type, inner_cv, n_trials, random_state, fold_idx):
@@ -139,7 +136,7 @@ def main():
     parser.add_argument("--split-tsv",     default=None,
                         help="共有 fold split TSV (sample_id, fold 列。省略時: 内部 KFold)")
     parser.add_argument("--output-dir",    default=None,
-                        help="結果出力先 (default: get_output(__file__) or output/models/)")
+                        help="結果出力先 (default: output/{project_name}/{NNN}/)")
     parser.add_argument("--model",          default="all",
                         choices=["lasso", "ridge", "rf", "mlp", "all"],
                         help="使用するモデル (default: all)")

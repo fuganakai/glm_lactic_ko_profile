@@ -26,17 +26,14 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-try:
-    from shadow_helper import get_output
-    _has_shadow = True
-except ImportError:
-    _has_shadow = False
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).parent))
+from _trial_dir import new_trial_dir
 
 
 def _default_results_dir():
-    if _has_shadow:
-        return str(get_output(__file__))
-    return str(Path(__file__).parent.parent / "output" / "models")
+    project_root = Path(__file__).parents[1]
+    return str(new_trial_dir(project_root))
 matplotlib.use("Agg")  # ヘッドレス環境対応
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -349,7 +346,7 @@ def plot_cumulative_importance(imp_df: pd.DataFrame, output_path: str):
 def main():
     parser = argparse.ArgumentParser(description="ベンチマーク結果の可視化")
     parser.add_argument("--results-dir", default=None,
-                        help="05_bench_models.py の出力ディレクトリ (default: get_output(__file__))")
+                        help="05_bench_models.py の出力ディレクトリ (default: output/{project_name}/{NNN}/)")
     parser.add_argument("--output-dir",  default=None,
                         help="図の出力先 (default: {results_dir}/figures)")
     parser.add_argument("--top-n-ko",    type=int, default=20,
