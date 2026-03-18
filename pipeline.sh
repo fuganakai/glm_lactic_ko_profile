@@ -26,7 +26,6 @@ KOFAMSCAN_KO_LIST="/path/to/kofamscan/ko_list"  # ← 要変更
 KOFAMSCAN_PROFILES="/path/to/kofamscan/profiles" # ← 要変更
 
 # --- conda 環境 ---
-CONDA_BASE="/home/nakai/miniforge3"    # ← 要変更
 CONDA_ENV_PROKKA="prokka_env"          # ← 要変更
 CONDA_ENV_KOFAM="kofam_env"           # ← 要変更
 CONDA_ENV_ML="ml_env"                  # ← 要変更
@@ -113,7 +112,6 @@ response_csv_dir:     "${RESPONSE_CSV_DIR}"
 kofamscan_dir:        "${KOFAMSCAN_DIR}"
 kofamscan_ko_list:    "${KOFAMSCAN_KO_LIST}"
 kofamscan_profiles:   "${KOFAMSCAN_PROFILES}"
-conda_base:           "${CONDA_BASE}"
 conda_env_prokka:     "${CONDA_ENV_PROKKA}"
 conda_env_kofam:      "${CONDA_ENV_KOFAM}"
 conda_env_ml:         "${CONDA_ENV_ML}"
@@ -154,7 +152,7 @@ fi
 # ============================================================
 # [6] conda ml_env をアクティベート (snakemake はここに入っている)
 # ============================================================
-source "${CONDA_BASE}/etc/profile.d/conda.sh"
+source ~/.bashrc
 conda activate "${CONDA_ENV_ML}"
 
 # ============================================================
