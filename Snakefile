@@ -72,7 +72,7 @@ rule filter_samples:
         f"{TRIAL_DIR}/logs/00_filter_samples.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/00_filter_samples.py \
             --genome-dir     {config[genome_dir]} \
@@ -95,7 +95,7 @@ rule run_prokka:
         f"{TRIAL_DIR}/logs/01_prokka/{{sample}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_prokka]}
         bash scripts/01_run_prokka.sh \
             --fna        {input.fna} \
@@ -117,7 +117,7 @@ rule run_kofamscan:
         f"{TRIAL_DIR}/logs/02_kofamscan/{{sample}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_kofam]}
         bash scripts/02_run_kofamscan.sh \
             --faa           {input.faa} \
@@ -142,7 +142,7 @@ rule kofamscan_to_csv:
         f"{TRIAL_DIR}/logs/03_kofamscan_to_csv/{{sample}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/03_kofamscan_to_csv.py \
             --input {input.txt} --output {output.csv} > {log} 2>&1
@@ -164,7 +164,7 @@ rule make_ko_profile:
         f"{TRIAL_DIR}/logs/04_make_ko_profile.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/04_make_ko_profile.py \
             --ko-annot-dir   {params.ko_annot_dir} \
@@ -196,7 +196,7 @@ rule bench_models:
         f"{TRIAL_DIR}/logs/05_bench_models/{{dataset}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
@@ -237,7 +237,7 @@ rule bench_models_ext:
         f"{TRIAL_DIR}/logs/05_bench_models_ext/{{dataset}}_seed{{seed}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/05_bench_models.py \
             --ko-profile-csv {input.ko_profile} \
@@ -274,7 +274,7 @@ rule aggregate_seeds:
         seeds = " ".join(str(s) for s in SEEDS)
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/07_aggregate_seeds.py \
             --results-dir {RESULTS}/{wildcards.dataset} \
@@ -306,7 +306,7 @@ rule visualize:
         f"{TRIAL_DIR}/logs/06_visualize/{{dataset}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/06_visualize.py \
             --results-dir {RESULTS}/{wildcards.dataset} \
@@ -339,7 +339,7 @@ rule visualize_ext:
         f"{TRIAL_DIR}/logs/06_visualize_ext/{{dataset}}_seed{{seed}}.log"
     shell:
         """
-        source ~/.bashrc
+        source {config[conda_base]}/etc/profile.d/conda.sh
         conda activate {config[conda_env_ml]}
         python scripts/06_visualize.py \
             --results-dir {RESULTS}/{wildcards.dataset}/seed{wildcards.seed} \

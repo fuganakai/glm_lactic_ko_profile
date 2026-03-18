@@ -156,13 +156,18 @@ KOFAMSCAN_KO_LIST="/path/to/ko_list"         # ko_list ファイルのパス
 KOFAMSCAN_PROFILES="/path/to/profiles"       # profiles/ ディレクトリのパス
 
 # --- conda 環境 ---
+CONDA_BASE="/home/yourname/miniforge3"  # conda info --base で確認
 CONDA_ENV_PROKKA="prokka_env"
 CONDA_ENV_KOFAM="kofam_env"
 CONDA_ENV_ML="ml_env"
 ```
 
-> **conda の活性化について:** `source ~/.bashrc` + `conda activate` を使うため、
-> `CONDA_BASE` の設定は不要です。`~/.bashrc` に conda の初期化が入っていることが前提です。
+`conda info --base` でインストール先を確認できます:
+
+```bash
+conda info --base
+# /home/yourname/miniforge3  ← これを CONDA_BASE に設定
+```
 
 ---
 
