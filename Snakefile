@@ -55,6 +55,10 @@ else:
     )
 
 
+# visualize_ext ({dataset}/seed{seed}) は visualize ({dataset}) より優先
+ruleorder: visualize_ext > visualize
+
+
 # ============================================================
 # ゴール
 # ============================================================
