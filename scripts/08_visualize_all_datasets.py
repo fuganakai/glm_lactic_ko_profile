@@ -230,10 +230,11 @@ def main():
     out_dir = Path(args.output_dir) if args.output_dir else results_dir / "figures"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # dataset ディレクトリ一覧（隠しディレクトリ・figures は除外）
+    # dataset ディレクトリ一覧（隠しディレクトリ・figures・logs は除外）
+    _EXCLUDE = {"figures", "logs"}
     datasets = sorted(
         p.name for p in results_dir.iterdir()
-        if p.is_dir() and not p.name.startswith(".") and p.name != "figures"
+        if p.is_dir() and not p.name.startswith(".") and p.name not in _EXCLUDE
     )
     if not datasets:
         print("[ERROR] データセットディレクトリが見つかりません。", file=sys.stderr)
