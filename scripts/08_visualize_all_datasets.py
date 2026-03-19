@@ -110,12 +110,12 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
 
     fig, ax = plt.subplots(figsize=(max(10, n * 1.4 + 2), 6))
 
-    # ── 棒グラフ（全モデル最大値） ──────────────────────────────
+    # ── 棒グラフ（全モデル最大値、負値は 0 にクリップ） ──────────
     max_vals = []
     for ds in datasets:
         vals = [r2_data[ds].get(m, np.nan) for m in MODELS]
         finite = [v for v in vals if not np.isnan(v)]
-        max_vals.append(max(finite) if finite else 0.0)
+        max_vals.append(max(0.0, max(finite)) if finite else 0.0)
 
     ax.bar(
         x, max_vals,
@@ -173,10 +173,8 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
         fontsize=12,
     )
 
-    # y 軸下限: 負のスコアがある場合に対応
-    all_vals = [v for ds in r2_data.values() for v in ds.values() if not np.isnan(v)]
-    if all_vals:
-        ax.set_ylim(bottom=min(0.0, min(all_vals) - 0.05))
+    # y 軸下限: 0 に固定（負の R² は棒・箱ひげでも 0 以上に見せる）
+    ax.set_ylim(bottom=0.0)
 
     # ── 凡例（モデル別） ─────────────────────────────────────────
     legend_handles = [
