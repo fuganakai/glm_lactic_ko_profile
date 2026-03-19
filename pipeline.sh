@@ -59,13 +59,22 @@ TOP_N_KO=20             # 可視化で表示する上位KO数
 # ============================================================
 DRY_RUN=false
 SHOW_DAG=false
+TRIAL_DIR_OPT=""
 
-for arg in "$@"; do
-    case $arg in
-        --dry-run) DRY_RUN=true ;;
-        --dag)     SHOW_DAG=true ;;
-        *) echo "[ERROR] 不明なオプション: $arg" >&2; exit 1 ;;
+while [ $# -gt 0 ]; do
+    case $1 in
+        --dry-run)   DRY_RUN=true ;;
+        --dag)       SHOW_DAG=true ;;
+        --trial-dir)
+            shift
+            TRIAL_DIR_OPT="$1"
+            ;;
+        --trial-dir=*)
+            TRIAL_DIR_OPT="${1#--trial-dir=}"
+            ;;
+        *) echo "[ERROR] 不明なオプション: $1" >&2; exit 1 ;;
     esac
+    shift
 done
 
 # ============================================================
@@ -92,15 +101,25 @@ mkdir -p config
 _PROJ_NAME="glm_lactic_ko_profile"
 _BASE_OUT="output/${_PROJ_NAME}"
 
-if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
+if [ "$SHOW_DAG" = true ] || [ "$DRY_RUN" = true ]; then
+    # dry-run / dag 時はダミーパス（実ディレクトリは作らない）
+    TRIAL_DIR="${TRIAL_DIR_OPT:-${_BASE_OUT}/preview}"
+    LOGS_SGE="${TRIAL_DIR}/logs/sge"
+elif [ -n "$TRIAL_DIR_OPT" ]; then
+    # --trial-dir 指定: 既存ディレクトリを使用（再採番しない）
+    TRIAL_DIR="${TRIAL_DIR_OPT}"
+    if [ ! -d "$TRIAL_DIR" ]; then
+        echo "[ERROR] 指定した --trial-dir が見つかりません: $TRIAL_DIR" >&2; exit 1
+    fi
+    echo "[pipeline.sh] 既存の試行ディレクトリを使用: ${TRIAL_DIR}"
+    LOGS_SGE="${TRIAL_DIR}/logs/sge"
+    mkdir -p "${LOGS_SGE}"
+else
+    # 通常実行: 新しい試行番号を採番
     TRIAL_DIR="$(new-trial-dir)"
     echo "[pipeline.sh] 試行ディレクトリ: ${TRIAL_DIR}"
     LOGS_SGE="${TRIAL_DIR}/logs/sge"
     mkdir -p "${LOGS_SGE}"
-else
-    # dry-run / dag 時はダミーパス（実ディレクトリは作らない）
-    TRIAL_DIR="${_BASE_OUT}/preview"
-    LOGS_SGE="${TRIAL_DIR}/logs/sge"
 fi
 RESULTS_DIR="${TRIAL_DIR}"
 
@@ -139,8 +158,8 @@ else
     echo "[pipeline.sh] デフォルトモード: 内部 KFold(5)"
 fi
 
-# run_info.txt を試行ディレクトリに書き込む (dry-run/dag 時はスキップ)
-if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ]; then
+# run_info.txt を試行ディレクトリに書き込む (dry-run/dag/--trial-dir 指定時はスキップ)
+if [ "$SHOW_DAG" = false ] && [ "$DRY_RUN" = false ] && [ -z "$TRIAL_DIR_OPT" ]; then
     {
         echo "date:    $(date '+%Y-%m-%d %H:%M:%S')"
         echo "branch:  $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
