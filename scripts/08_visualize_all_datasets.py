@@ -122,28 +122,8 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
         width=bar_width,
         color="steelblue",
         alpha=0.85,
-        zorder=3,
+        zorder=2,
         label="_nolegend_",
-    )
-
-    # ── 箱ひげ図（4 モデルの fold 平均 R² の分布、負値は 0 にクリップ） ──
-    box_data = []
-    for ds in datasets:
-        vals = [r2_data[ds].get(m, np.nan) for m in MODELS]
-        box_data.append([max(0.0, v) for v in vals if not np.isnan(v)])
-
-    ax.boxplot(
-        box_data,
-        positions=x,
-        widths=bar_width * 0.45,
-        patch_artist=True,
-        zorder=4,
-        manage_ticks=False,
-        boxprops=dict(facecolor="white", alpha=0.85, linewidth=1.3),
-        medianprops=dict(color="#333333", linewidth=1.8),
-        whiskerprops=dict(linewidth=1.1, linestyle="--"),
-        capprops=dict(linewidth=1.1),
-        flierprops=dict(marker="", markersize=0),  # 外れ値は散布点で代替
     )
 
     # ── 散布点（モデルごとに色・マーカーを変える、負値は 0 にクリップ） ──
@@ -157,7 +137,7 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
                 color=MODEL_COLORS[model],
                 marker=MODEL_MARKERS[model],
                 s=65,
-                zorder=5,
+                zorder=3,
                 linewidths=0.6,
                 edgecolors="white",
             )
@@ -168,13 +148,13 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
     ax.set_ylabel("R² Score (fold mean)")
     ax.set_xlabel("Dataset (metabolite)")
     ax.set_title(
-        "R² Comparison Across Datasets\n"
-        "(bar = best model, box = model distribution, dots = each model)",
+        "R² Comparison Across Datasets (bar = best model, dots = each model)",
         fontsize=12,
     )
 
-    # y 軸下限: 0 に固定（負の R² は棒・箱ひげでも 0 以上に見せる）
-    ax.set_ylim(bottom=0.0)
+    # y 軸: 下限 0、上限は最大値に 10% の余白
+    y_top = max(max_vals) * 1.10 if max(max_vals) > 0 else 1.0
+    ax.set_ylim(bottom=0.0, top=y_top)
 
     # ── 凡例（モデル別） ─────────────────────────────────────────
     legend_handles = [
