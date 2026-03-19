@@ -152,9 +152,7 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
         fontsize=12,
     )
 
-    # y 軸: 下限 0、上限は最大値に 10% の余白
-    y_top = max(max_vals) * 1.10 if max(max_vals) > 0 else 1.0
-    ax.set_ylim(bottom=0.0, top=y_top)
+    ax.set_ylim(bottom=0.0, top=1.0)
 
     # ── 凡例（モデル別） ─────────────────────────────────────────
     legend_handles = [
