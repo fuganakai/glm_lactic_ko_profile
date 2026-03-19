@@ -45,6 +45,7 @@ if USE_EXTERNAL_SPLITS:
         + expand(f"{RESULTS}/{{dataset}}/summary/sample_predictions_all.csv",  dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/seed{{seed}}/figures/r2_comparison.png",
                  dataset=DATASETS, seed=SEEDS)
+        + [f"{RESULTS}/figures/r2_all_datasets.png"]
     )
 else:
     # デフォルトモード: 内部 KFold
@@ -52,6 +53,7 @@ else:
         expand(f"{RESULTS}/{{dataset}}/r2_scores.csv",           dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/feature_importances.csv",  dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/figures/r2_comparison.png", dataset=DATASETS)
+        + [f"{RESULTS}/figures/r2_all_datasets.png"]
     )
 
 
@@ -283,6 +285,30 @@ rule aggregate_seeds:
         python scripts/07_aggregate_seeds.py \
             --results-dir {RESULTS}/{wildcards.dataset} \
             --seeds {params.seeds} > {log} 2>&1
+        """
+
+
+# ============================================================
+# Step 8: 全データセット横断 R² 比較プロット
+# ============================================================
+rule visualize_all_datasets:
+    input:
+        r2_files = (
+            expand(f"{RESULTS}/{{dataset}}/summary/r2_mean_std.csv", dataset=DATASETS)
+            if USE_EXTERNAL_SPLITS else
+            expand(f"{RESULTS}/{{dataset}}/r2_scores.csv", dataset=DATASETS)
+        )
+    output:
+        fig = f"{RESULTS}/figures/r2_all_datasets.png"
+    log:
+        f"{TRIAL_DIR}/logs/08_visualize_all_datasets.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/08_visualize_all_datasets.py \
+            --results-dir {RESULTS} \
+            --output-dir  {RESULTS}/figures > {log} 2>&1
         """
 
 
