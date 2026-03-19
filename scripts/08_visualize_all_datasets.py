@@ -99,16 +99,27 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
     ----------
     r2_data : {dataset_name: {model_name: r2_fold_mean}}
     """
-    datasets = list(r2_data.keys())
+    # R² 最大値の高い順にソート
+    datasets = sorted(
+        r2_data.keys(),
+        key=lambda ds: max(
+            (v for v in r2_data[ds].values() if not np.isnan(v)),
+            default=0.0,
+        ),
+        reverse=True,
+    )
     n = len(datasets)
     if n == 0:
         print("  [fig8] データがありません。スキップします。")
         return
 
     x = np.arange(n)
-    bar_width = 0.6
+    bar_width = 0.35
 
-    fig, ax = plt.subplots(figsize=(max(10, n * 1.4 + 2), 6))
+    # A4横（297×210mm）比率 ≈ 1.414:1
+    fig_w = max(12, n * 0.6 + 3)
+    fig_h = fig_w / 1.414
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
 
     # ── 棒グラフ（全モデル最大値、負値は 0 にクリップ） ──────────
     max_vals = []
@@ -125,6 +136,16 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
         zorder=2,
         label="_nolegend_",
     )
+
+    # ── 棒の上に最大値を表示 ──────────────────────────────────────
+    for xi, val in zip(x, max_vals):
+        ax.text(
+            xi, val + 0.01,
+            f"{val:.2f}",
+            ha="center", va="bottom",
+            fontsize=7.5, color="black",
+            zorder=4,
+        )
 
     # ── 散布点（モデルごとに色・マーカーを変える、負値は 0 にクリップ） ──
     for ds_i, ds in enumerate(datasets):
