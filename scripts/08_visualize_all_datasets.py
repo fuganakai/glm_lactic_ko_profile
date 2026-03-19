@@ -137,6 +137,16 @@ def plot_r2_all_datasets(r2_data: dict, output_path: str):
         label="_nolegend_",
     )
 
+    # ── 棒の上に最大値を表示 ──────────────────────────────────────
+    for xi, val in zip(x, max_vals):
+        ax.text(
+            xi, val + 0.01,
+            f"{val:.2f}",
+            ha="center", va="bottom",
+            fontsize=7.5, color="black",
+            zorder=4,
+        )
+
     # ── 散布点（モデルごとに色・マーカーを変える、負値は 0 にクリップ） ──
     for ds_i, ds in enumerate(datasets):
         for model in MODELS:
