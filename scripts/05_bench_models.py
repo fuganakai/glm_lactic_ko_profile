@@ -40,6 +40,7 @@ from sklearn.model_selection import KFold
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
+import joblib
 import subprocess
 
 # Optuna でハイパーパラメータをチューニングするモデル
@@ -252,6 +253,9 @@ def main():
             for fi, (tr_idx, te_idx) in enumerate(outer_cv_kf.split(sids_arr)):
                 yield fi, tr_idx, te_idx
 
+    models_dir = os.path.join(args.output_dir, "models")
+    os.makedirs(models_dir, exist_ok=True)
+
     all_r2_rows = []
     # 寄与度の累積は Lasso / Ridge / RF のみ（MLP は解釈困難なため省略）
     importance_accum = {
@@ -327,6 +331,21 @@ def main():
             bp_df.to_csv(
                 os.path.join(args.output_dir, f"best_params_{model_name}.csv"), index=False)
             print(f"  [{model_name}] best_params -> {args.output_dir}/best_params_{model_name}.csv")
+
+        # ── Final model（全データで学習）────────────────────────────────
+        sc_final = StandardScaler().fit(X)
+        if model_name in _OPTUNA_MODELS:
+            # inner_cv_r2 が最大の fold のパラメータを採用
+            best_row = max(best_params_rows, key=lambda r: r["inner_cv_r2"])
+            best_params_final = json.loads(best_row["params"])
+            clf_final = _build_tuned_model(model_name, best_params_final, args.random_state)
+            print(f"  [{model_name}] Final model params (best inner R²={best_row['inner_cv_r2']:.4f}): {best_params_final}")
+        else:
+            clf_final = type(clf_template)(**clf_template.get_params())
+        clf_final.fit(sc_final.transform(X), y)
+        joblib.dump(clf_final,  os.path.join(models_dir, f"{model_name}_final.joblib"))
+        joblib.dump(sc_final,   os.path.join(models_dir, f"{model_name}_scaler_final.joblib"))
+        print(f"  [{model_name}] Final model  -> {models_dir}/{model_name}_final.joblib")
 
     # ── R² スコアの保存 ────────────────────────────────────────────
     r2_df = pd.DataFrame(all_r2_rows)
