@@ -45,6 +45,8 @@ if USE_EXTERNAL_SPLITS:
         + expand(f"{RESULTS}/{{dataset}}/summary/sample_predictions_all.csv",  dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/seed{{seed}}/figures/r2_comparison.png",
                  dataset=DATASETS, seed=SEEDS)
+        + expand(f"{RESULTS}/{{dataset}}/seed{{seed}}/shap_interaction_top_pairs.csv",
+                 dataset=DATASETS, seed=SEEDS)
         + [f"{RESULTS}/figures/r2_all_datasets.png"]
     )
 else:
@@ -53,12 +55,15 @@ else:
         expand(f"{RESULTS}/{{dataset}}/r2_scores.csv",           dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/feature_importances.csv",  dataset=DATASETS)
         + expand(f"{RESULTS}/{{dataset}}/figures/r2_comparison.png", dataset=DATASETS)
+        + expand(f"{RESULTS}/{{dataset}}/shap_interaction_top_pairs.csv", dataset=DATASETS)
         + [f"{RESULTS}/figures/r2_all_datasets.png"]
     )
 
 
 # visualize_ext ({dataset}/seed{seed}) は visualize ({dataset}) より優先
 ruleorder: visualize_ext > visualize
+# xgb_shap_ext ({dataset}/seed{seed}) は xgb_shap ({dataset}) より優先
+ruleorder: xgb_shap_ext > xgb_shap
 
 
 # ============================================================
@@ -375,4 +380,75 @@ rule visualize_ext:
             --results-dir {RESULTS}/{wildcards.dataset}/seed{wildcards.seed} \
             --output-dir  {RESULTS}/{wildcards.dataset}/seed{wildcards.seed}/figures \
             --top-n-ko    {config[top_n_ko]} > {log} 2>&1
+        """
+
+
+# ============================================================
+# Step 6c (デフォルト): XGBoost + SHAP 解析
+# ============================================================
+rule xgb_shap:
+    input:
+        ko_profile   = f"{_PROC}/ko_profile.csv",
+        response_csv = lambda w: f"{config['response_csv_dir']}/{w.dataset}.csv"
+    output:
+        predictions      = f"{RESULTS}/{{dataset}}/sample_predictions_xgb.csv",
+        r2_scores        = f"{RESULTS}/{{dataset}}/r2_scores_xgb.csv",
+        best_params      = f"{RESULTS}/{{dataset}}/best_params_xgb.csv",
+        ko_cols          = f"{RESULTS}/{{dataset}}/ko_cols.txt",
+        shap_values      = f"{RESULTS}/{{dataset}}/shap_values_xgb.csv",
+        shap_inter_raw   = f"{RESULTS}/{{dataset}}/shap_interaction_raw_xgb.npy",
+        shap_inter_mean  = f"{RESULTS}/{{dataset}}/shap_interaction_mean_xgb.npy",
+        shap_inter_top   = f"{RESULTS}/{{dataset}}/shap_interaction_top_pairs.csv"
+    log:
+        f"{TRIAL_DIR}/logs/06_xgb_shap/{{dataset}}.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/06_xgb_shap.py \
+            --ko-profile-csv {input.ko_profile} \
+            --response-csv   {input.response_csv} \
+            --output-dir     {RESULTS}/{wildcards.dataset} \
+            --min-samples-ko {config[min_samples_ko]} \
+            --random-state   {config[random_state]} \
+            --n-trials       {config[n_trials_xgb]} \
+            --top-n-pairs    {config[top_n_pairs]} > {log} 2>&1
+        """
+
+
+# ============================================================
+# Step 6d (共有 fold split モード): XGBoost + SHAP 解析（seed 別）
+# ============================================================
+rule xgb_shap_ext:
+    input:
+        ko_profile   = f"{_PROC}/ko_profile.csv",
+        response_csv = lambda w: f"{config['response_csv_dir']}/{w.dataset}.csv",
+        split_tsv    = lambda w: (
+            f"{config['split_info_dir']}/{w.dataset}/"
+            f"{w.dataset}_5fold_seed{w.seed}.tsv"
+        )
+    output:
+        predictions      = f"{RESULTS}/{{dataset}}/seed{{seed}}/sample_predictions_xgb.csv",
+        r2_scores        = f"{RESULTS}/{{dataset}}/seed{{seed}}/r2_scores_xgb.csv",
+        best_params      = f"{RESULTS}/{{dataset}}/seed{{seed}}/best_params_xgb.csv",
+        ko_cols          = f"{RESULTS}/{{dataset}}/seed{{seed}}/ko_cols.txt",
+        shap_values      = f"{RESULTS}/{{dataset}}/seed{{seed}}/shap_values_xgb.csv",
+        shap_inter_raw   = f"{RESULTS}/{{dataset}}/seed{{seed}}/shap_interaction_raw_xgb.npy",
+        shap_inter_mean  = f"{RESULTS}/{{dataset}}/seed{{seed}}/shap_interaction_mean_xgb.npy",
+        shap_inter_top   = f"{RESULTS}/{{dataset}}/seed{{seed}}/shap_interaction_top_pairs.csv"
+    log:
+        f"{TRIAL_DIR}/logs/06_xgb_shap_ext/{{dataset}}_seed{{seed}}.log"
+    shell:
+        """
+        source {config[conda_base]}/etc/profile.d/conda.sh
+        conda activate {config[conda_env_ml]}
+        python scripts/06_xgb_shap.py \
+            --ko-profile-csv {input.ko_profile} \
+            --response-csv   {input.response_csv} \
+            --split-tsv      {input.split_tsv} \
+            --output-dir     {RESULTS}/{wildcards.dataset}/seed{wildcards.seed} \
+            --min-samples-ko {config[min_samples_ko]} \
+            --random-state   {wildcards.seed} \
+            --n-trials       {config[n_trials_xgb]} \
+            --top-n-pairs    {config[top_n_pairs]} > {log} 2>&1
         """
