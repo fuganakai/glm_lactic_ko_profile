@@ -135,8 +135,10 @@ JOBEOF
                 fi
                 log_info "SGE 投入: ${DATASET} seed${SEED}"
                 # shellcheck disable=SC2086
-                qsub ${QSUB_EXTRA_OPTS} -N "bench_${DATASET}_s${SEED}" "${JOBSCRIPT}"
+                SUBMITTED=$(qsub ${QSUB_EXTRA_OPTS} -N "bench_${DATASET}_s${SEED}" "${JOBSCRIPT}" 2>&1)
                 rm -f "${JOBSCRIPT}"
+                JID=$(echo "${SUBMITTED}" | grep -oP 'Your job \K[0-9]+' || true)
+                [ -n "${JID}" ] && JOB_IDS+=("${JID}")
             done
 
         else
@@ -179,16 +181,29 @@ JOBEOF
             fi
             log_info "SGE 投入: ${DATASET}"
             # shellcheck disable=SC2086
-            qsub ${QSUB_EXTRA_OPTS} -N "bench_${DATASET}" "${JOBSCRIPT}"
+            SUBMITTED=$(qsub ${QSUB_EXTRA_OPTS} -N "bench_${DATASET}" "${JOBSCRIPT}" 2>&1)
             rm -f "${JOBSCRIPT}"
+            JID=$(echo "${SUBMITTED}" | grep -oP 'Your job \K[0-9]+' || true)
+            [ -n "${JID}" ] && JOB_IDS+=("${JID}")
         fi
     done
 
-    # SGEジョブの完了を待つ
-    if [ "${DRY_RUN}" = false ]; then
-        log_info "SGE ジョブの完了を待機中..."
-        qwait "bench_*" 2>/dev/null || true
+    # SGEジョブの完了を待つ（hold_jid + sync y で確実に待機）
+    if [ "${DRY_RUN}" = false ] && [ ${#JOB_IDS[@]} -gt 0 ]; then
+        log_info "SGE ジョブの完了を待機中... (job IDs: ${JOB_IDS[*]})"
+        HOLD_LIST=$(IFS=,; echo "${JOB_IDS[*]}")
+        SYNC_SCRIPT="$(mktemp --suffix=.sh)"
+        printf '#!/bin/sh\nexit 0\n' > "${SYNC_SCRIPT}"
+        # shellcheck disable=SC2086
+        qsub ${QSUB_EXTRA_OPTS} \
+            -hold_jid "${HOLD_LIST}" \
+            -sync y \
+            -N "bench_sync" \
+            "${SYNC_SCRIPT}" >/dev/null 2>&1 || true
+        rm -f "${SYNC_SCRIPT}"
         log_info "Step 5 完了（SGE）"
+    elif [ "${DRY_RUN}" = false ]; then
+        log_info "Step 5: 投入したジョブなし（全スキップ）"
     fi
     exit 0
 fi

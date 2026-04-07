@@ -84,6 +84,8 @@ mkdir -p "${LOG_DIR}" "${SGE_LOG_DIR}"
 # SGE モード（メモリが大きいため SGE 推奨）
 # ============================================================
 if [ "${USE_SGE}" = true ]; then
+    JOB_IDS=()
+
     for DATASET in "${DATASETS[@]}"; do
         RESPONSE_CSV="${RESPONSE_CSV_DIR}/${DATASET}.csv"
 
@@ -96,7 +98,6 @@ if [ "${USE_SGE}" = true ]; then
                     log_info "スキップ（既存）: ${DATASET}/seed${SEED}"; continue
                 fi
 
-                SPLIT_TSV="${SPLIT_INFO_DIR}/${DATASET}/${DATASET}_5fold_seed${SEED}.tsv"
                 JOBSCRIPT="$(mktemp --suffix=.sh)"
                 cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
@@ -113,11 +114,9 @@ conda activate "${CONDA_ENV_ML}"
 python "${SCRIPT_DIR}/06_xgb_shap.py" \\
     --ko-profile-csv "${KO_PROFILE}" \\
     --response-csv   "${RESPONSE_CSV}" \\
-    --split-tsv      "${SPLIT_TSV}" \\
     --output-dir     "${OUT_DIR}" \\
     --min-samples-ko ${MIN_SAMPLES_KO} \\
     --random-state   ${RANDOM_STATE} \\
-    --n-trials       ${N_TRIALS_XGB} \\
     --top-n-pairs    ${TOP_N_PAIRS} \\
     > "${LOG_DIR}/${DATASET}_seed${SEED}.log" 2>&1
 JOBEOF
@@ -127,8 +126,10 @@ JOBEOF
                 fi
                 log_info "SGE 投入: ${DATASET} seed${SEED}"
                 # shellcheck disable=SC2086
-                qsub ${QSUB_EXTRA_OPTS} -N "xgbshap_${DATASET}_s${SEED}" "${JOBSCRIPT}"
+                SUBMITTED=$(qsub ${QSUB_EXTRA_OPTS} -N "xgbshap_${DATASET}_s${SEED}" "${JOBSCRIPT}" 2>&1)
                 rm -f "${JOBSCRIPT}"
+                JID=$(echo "${SUBMITTED}" | grep -oP 'Your job \K[0-9]+' || true)
+                [ -n "${JID}" ] && JOB_IDS+=("${JID}")
             done
 
         else
@@ -158,7 +159,6 @@ python "${SCRIPT_DIR}/06_xgb_shap.py" \\
     --output-dir     "${OUT_DIR}" \\
     --min-samples-ko ${MIN_SAMPLES_KO} \\
     --random-state   ${RANDOM_STATE} \\
-    --n-trials       ${N_TRIALS_XGB} \\
     --top-n-pairs    ${TOP_N_PAIRS} \\
     > "${LOG_DIR}/${DATASET}.log" 2>&1
 JOBEOF
@@ -168,15 +168,28 @@ JOBEOF
             fi
             log_info "SGE 投入: ${DATASET}"
             # shellcheck disable=SC2086
-            qsub ${QSUB_EXTRA_OPTS} -N "xgbshap_${DATASET}" "${JOBSCRIPT}"
+            SUBMITTED=$(qsub ${QSUB_EXTRA_OPTS} -N "xgbshap_${DATASET}" "${JOBSCRIPT}" 2>&1)
             rm -f "${JOBSCRIPT}"
+            JID=$(echo "${SUBMITTED}" | grep -oP 'Your job \K[0-9]+' || true)
+            [ -n "${JID}" ] && JOB_IDS+=("${JID}")
         fi
     done
 
-    if [ "${DRY_RUN}" = false ]; then
-        log_info "SGE ジョブの完了を待機中..."
-        qwait "xgbshap_*" 2>/dev/null || true
+    if [ "${DRY_RUN}" = false ] && [ ${#JOB_IDS[@]} -gt 0 ]; then
+        log_info "SGE ジョブの完了を待機中... (job IDs: ${JOB_IDS[*]})"
+        HOLD_LIST=$(IFS=,; echo "${JOB_IDS[*]}")
+        SYNC_SCRIPT="$(mktemp --suffix=.sh)"
+        printf '#!/bin/sh\nexit 0\n' > "${SYNC_SCRIPT}"
+        # shellcheck disable=SC2086
+        qsub ${QSUB_EXTRA_OPTS} \
+            -hold_jid "${HOLD_LIST}" \
+            -sync y \
+            -N "xgbshap_sync" \
+            "${SYNC_SCRIPT}" >/dev/null 2>&1 || true
+        rm -f "${SYNC_SCRIPT}"
         log_info "Step 6b 完了（SGE）"
+    elif [ "${DRY_RUN}" = false ]; then
+        log_info "Step 6b: 投入したジョブなし（全スキップ）"
     fi
     exit 0
 fi
