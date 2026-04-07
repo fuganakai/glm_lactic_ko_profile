@@ -21,9 +21,13 @@ source "${SCRIPT_DIR}/config.sh"
 SEEDS_ARR=(${SEEDS})
 N_SEEDS=${#SEEDS_ARR[@]}
 
-# trial_dir の決定
+# trial_dir の決定（相対パスはPROJECT_ROOTからの相対として解決）
 if [ "${1:-}" != "" ]; then
-    TRIAL_DIR="$1"
+    if [[ "$1" = /* ]]; then
+        TRIAL_DIR="$1"
+    else
+        TRIAL_DIR="${PROJECT_ROOT}/$1"
+    fi
 else
     OUTPUT_BASE="${PROJECT_ROOT}/output/glm_lactic_ko_profile"
     TRIAL_DIR=$(find "${OUTPUT_BASE}" -maxdepth 1 -type d -name '[0-9][0-9][0-9]' 2>/dev/null \
@@ -53,9 +57,9 @@ if [ ${N_DATASETS} -eq 0 ]; then
     exit 0
 fi
 
-# ---- extモード判定（seed ディレクトリがあるか）----
+# ---- extモード判定（SPLIT_INFO_DIR が設定されているか、またはseedディレクトリが存在するか）----
 FIRST_DS="${DATASETS[0]}"
-if [ -d "${TRIAL_DIR}/${FIRST_DS}/seed${SEEDS_ARR[0]}" ]; then
+if [ -n "${SPLIT_INFO_DIR:-}" ] || [ -d "${TRIAL_DIR}/${FIRST_DS}/seed${SEEDS_ARR[0]}" ]; then
     USE_EXT=true
     TOTAL_UNITS=$((N_DATASETS * N_SEEDS))
 else
@@ -157,9 +161,11 @@ echo ""
 # ============================================================
 echo "--- 実行中 SGE ジョブ ---"
 if command -v qstat &>/dev/null; then
-    RUNNING=$(qstat 2>/dev/null | grep -E "bench_|xgbshap_|prokka_|kofam_" || true)
+    # ジョブID, 名前, 状態, 開始時刻 を表示
+    RUNNING=$(qstat 2>/dev/null | tail -n +3 || true)
     if [ -n "${RUNNING}" ]; then
-        echo "${RUNNING}" | awk '{printf "  %-12s %-20s %s\n", $1, $4, $5}'
+        printf "  %-10s %-25s %-5s %s\n" "JobID" "Name" "State" "Start"
+        echo "${RUNNING}" | awk '{printf "  %-10s %-25s %-5s %s\n", $1, $3, $5, $6" "$7}'
     else
         echo "  （実行中ジョブなし）"
     fi
