@@ -34,7 +34,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -108,7 +108,7 @@ if [ "${USE_SGE}" = true ]; then
 set -euo pipefail
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate "${CONDA_ENV_ML}"
-python "${PROJECT_ROOT}/scripts/06_xgb_shap.py" \\
+python "${SCRIPT_DIR}/06_xgb_shap.py" \\
     --ko-profile-csv "${KO_PROFILE}" \\
     --response-csv   "${RESPONSE_CSV}" \\
     --split-tsv      "${SPLIT_TSV}" \\
@@ -148,7 +148,7 @@ JOBEOF
 set -euo pipefail
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate "${CONDA_ENV_ML}"
-python "${PROJECT_ROOT}/scripts/06_xgb_shap.py" \\
+python "${SCRIPT_DIR}/06_xgb_shap.py" \\
     --ko-profile-csv "${KO_PROFILE}" \\
     --response-csv   "${RESPONSE_CSV}" \\
     --output-dir     "${OUT_DIR}" \\
@@ -204,7 +204,7 @@ for DATASET in "${DATASETS[@]}"; do
 
             log_info "XGBoost+SHAP: ${DATASET} seed${SEED}"
             mkdir -p "${OUT_DIR}"
-            python "${PROJECT_ROOT}/scripts/06_xgb_shap.py" \
+            python "${SCRIPT_DIR}/06_xgb_shap.py" \
                 --ko-profile-csv "${KO_PROFILE}" \
                 --response-csv   "${RESPONSE_CSV}" \
                 --split-tsv      "${SPLIT_TSV}" \
@@ -230,7 +230,7 @@ for DATASET in "${DATASETS[@]}"; do
 
         log_info "XGBoost+SHAP: ${DATASET}"
         mkdir -p "${OUT_DIR}"
-        python "${PROJECT_ROOT}/scripts/06_xgb_shap.py" \
+        python "${SCRIPT_DIR}/06_xgb_shap.py" \
             --ko-profile-csv "${KO_PROFILE}" \
             --response-csv   "${RESPONSE_CSV}" \
             --output-dir     "${OUT_DIR}" \

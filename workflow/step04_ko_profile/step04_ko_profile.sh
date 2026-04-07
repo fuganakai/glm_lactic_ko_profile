@@ -26,7 +26,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -85,7 +85,7 @@ fi
 
 activate_conda "${CONDA_ENV_ML}"
 
-python "${PROJECT_ROOT}/scripts/04_make_ko_profile.py" \
+python "${SCRIPT_DIR}/04_make_ko_profile.py" \
     --ko-annot-dir   "${KO_ANNOT_DIR}" \
     --min-samples-ko "${MIN_SAMPLES_KO}" \
     --output-profile "${KO_PROFILE}" \

@@ -28,7 +28,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -93,7 +93,7 @@ for DATASET in "${DATASETS[@]}"; do
 
             log_info "可視化: ${DATASET} seed${SEED}"
             mkdir -p "${FIG_DIR}"
-            python "${PROJECT_ROOT}/scripts/06_visualize.py" \
+            python "${SCRIPT_DIR}/06_visualize.py" \
                 --results-dir "${RESULTS_DIR}" \
                 --output-dir  "${FIG_DIR}" \
                 --top-n-ko    "${TOP_N_KO}" \
@@ -119,7 +119,7 @@ for DATASET in "${DATASETS[@]}"; do
 
         log_info "可視化: ${DATASET}"
         mkdir -p "${FIG_DIR}"
-        python "${PROJECT_ROOT}/scripts/06_visualize.py" \
+        python "${SCRIPT_DIR}/06_visualize.py" \
             --results-dir "${RESULTS_DIR}" \
             --output-dir  "${FIG_DIR}" \
             --top-n-ko    "${TOP_N_KO}" \
