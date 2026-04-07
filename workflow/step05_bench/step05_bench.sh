@@ -49,7 +49,8 @@ trap 'log_error "line ${LINENO}: ${BASH_COMMAND}"' ERR
 KO_PROFILE="${PROCESSED_DIR}/ko_profile.csv"
 LOG_DIR="${TRIAL_DIR}/logs/05_bench_models"
 SGE_LOG_DIR="${TRIAL_DIR}/logs/sge"
-CPUS_PER_JOB=4
+CPUS_PER_JOB="${SGE_CPUS_BENCH}"
+MEM_PER_JOB="${SGE_MEM_BENCH}"
 
 # ============================================================
 # 前提チェック
@@ -107,9 +108,9 @@ if [ "${USE_SGE}" = true ]; then
                 cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem_user=16G
-#$ -l h_vmem=16G
-#$ -l mem_req=16G
+#$ -l mem_user=${MEM_PER_JOB}
+#$ -l h_vmem=${MEM_PER_JOB}
+#$ -l mem_req=${MEM_PER_JOB}
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/
@@ -152,9 +153,9 @@ JOBEOF
             cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem_user=16G
-#$ -l h_vmem=16G
-#$ -l mem_req=16G
+#$ -l mem_user=${MEM_PER_JOB}
+#$ -l h_vmem=${MEM_PER_JOB}
+#$ -l mem_req=${MEM_PER_JOB}
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/

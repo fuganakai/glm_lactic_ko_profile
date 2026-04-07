@@ -48,8 +48,8 @@ trap 'log_error "line ${LINENO}: ${BASH_COMMAND}"' ERR
 KO_PROFILE="${PROCESSED_DIR}/ko_profile.csv"
 LOG_DIR="${TRIAL_DIR}/logs/06_xgb_shap"
 SGE_LOG_DIR="${TRIAL_DIR}/logs/sge"
-CPUS_PER_JOB=4
-MEM_PER_JOB="64G"   # SHAP interaction 行列はメモリヘビー
+CPUS_PER_JOB="${SGE_CPUS_SHAP}"
+MEM_PER_JOB="${SGE_MEM_SHAP}"
 
 # ============================================================
 # 前提チェック
