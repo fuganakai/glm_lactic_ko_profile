@@ -92,6 +92,7 @@ cat > "${JOBSCRIPT}" <<JOBEOF
 #$ -o ${LOG_FILE}
 #$ -e ${LOG_FILE}.err
 set -euo pipefail
+export PATH="/tools/wrapper:${PATH}"
 export USE_SGE=true
 export QSUB_EXTRA_OPTS="${QSUB_EXTRA_OPTS:-}"
 
