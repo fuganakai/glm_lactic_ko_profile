@@ -42,7 +42,8 @@ trap 'log_error "line ${LINENO}: ${BASH_COMMAND}"' ERR
 FILTERED_SAMPLES="${PROCESSED_DIR}/filtered_samples.txt"
 PROKKA_OUT_DIR="${PROCESSED_DIR}/prokka_out"
 LOG_DIR="${TRIAL_DIR}/logs/01_prokka"
-CPUS_PER_JOB=8   # SGE: cluster.yaml の run_prokka と合わせる
+CPUS_PER_JOB="${SGE_CPUS_PROKKA}"
+MEM_PER_JOB="${SGE_MEM_PROKKA}"
 
 # ============================================================
 # 前提チェック
@@ -92,9 +93,9 @@ if [ "${USE_SGE}" = true ]; then
     cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem_user=16G
-#$ -l h_vmem=16G
-#$ -l mem_req=16G
+#$ -l mem_user=${MEM_PER_JOB}
+#$ -l h_vmem=${MEM_PER_JOB}
+#$ -l mem_req=${MEM_PER_JOB}
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/

@@ -40,6 +40,21 @@ SPLIT_INFO_DIR=""                              # 例: "/path/to/split_info_5fold
 SEEDS="40 41 42 43 44 45 46 47 48 49"         # ext モード時に使う seed（スペース区切り）
 
 # ============================================================
+# SGE リソース設定（USE_SGE=true の場合のみ使用）
+# ============================================================
+SGE_CPUS_PROKKA=8       # step01: Prokka の並列数
+SGE_MEM_PROKKA="16G"    # step01: Prokka のメモリ
+
+SGE_CPUS_KOFAMSCAN=8    # step02: KoFamScan の並列数
+SGE_MEM_KOFAMSCAN="16G" # step02: KoFamScan のメモリ
+
+SGE_CPUS_BENCH=4        # step05: モデル学習の並列数
+SGE_MEM_BENCH="16G"     # step05: モデル学習のメモリ
+
+SGE_CPUS_SHAP=4         # step06b: XGBoost+SHAP の並列数
+SGE_MEM_SHAP="64G"      # step06b: XGBoost+SHAP のメモリ（interaction 行列でメモリヘビー）
+
+# ============================================================
 # 解析パラメータ
 # ============================================================
 MIN_SAMPLES_KO=5         # この数以上のサンプルで検出された KO のみ学習対象に含める
