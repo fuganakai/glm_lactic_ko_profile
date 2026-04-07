@@ -82,7 +82,9 @@ if [ "${USE_SGE}" = true ]; then
     cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem=16G
+#$ -l mem_user=16G
+#$ -l h_vmem=16G
+#$ -l mem_req=16G
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/

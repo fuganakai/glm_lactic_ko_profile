@@ -39,15 +39,12 @@ source "${SCRIPT_DIR}/common.sh"
 # ============================================================
 # オプション解析
 # ============================================================
-WALL_TIME="72:00:00"
 SYNC_OPT=""
 DRY_RUN=false
 PASSTHROUGH_ARGS=()
 
 while [ $# -gt 0 ]; do
     case $1 in
-        --wall-time)    shift; WALL_TIME="$1" ;;
-        --wall-time=*)  WALL_TIME="${1#--wall-time=}" ;;
         --sync)         SYNC_OPT="-sync y" ;;
         --dry-run)      DRY_RUN=true; PASSTHROUGH_ARGS+=("--dry-run") ;;
         # run_all.sh へのパススルー
@@ -86,15 +83,17 @@ for arg in "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"; do
 done
 
 cat > "${JOBSCRIPT}" <<JOBEOF
-#!/bin/bash
-#$ -pe smp 1
-#$ -l mem=4G
-#$ -l d_rt=${WALL_TIME}
+#!/bin/sh
 #$ -cwd
-#$ -j y
+#$ -pe smp 1
+#$ -l mem_user=4G
+#$ -l h_vmem=4G
+#$ -l mem_req=4G
 #$ -o ${LOG_FILE}
+#$ -e ${LOG_FILE}.err
 set -euo pipefail
 
+start_time=\$(date +%s)
 echo "[run_all] 開始: \$(date '+%Y-%m-%d %H:%M:%S')"
 echo "[run_all] ノード: \$(hostname)"
 echo "[run_all] trial_dir: ${TRIAL_DIR}"
@@ -103,7 +102,8 @@ bash "${SCRIPT_DIR}/run_all.sh" \\
     --trial-dir "${TRIAL_DIR}" \\
     ${PASSTHROUGH_STR}
 
-echo "[run_all] 完了: \$(date '+%Y-%m-%d %H:%M:%S')"
+end_time=\$(date +%s)
+echo "[run_all] 完了: \$(date '+%Y-%m-%d %H:%M:%S')  (所要時間: \$((end_time - start_time)) 秒)"
 JOBEOF
 
 # ============================================================
@@ -122,12 +122,21 @@ fi
 
 echo "[submit.sh] qsub 投入中..."
 # shellcheck disable=SC2086
-JOB_ID=$(qsub ${QSUB_EXTRA_OPTS:-} \
+QSUB_OUTPUT=$(qsub ${QSUB_EXTRA_OPTS:-} \
     -N "run_all" \
     ${SYNC_OPT} \
-    "${JOBSCRIPT}" | grep -oP 'Your job \K[0-9]+' || echo "unknown")
+    "${JOBSCRIPT}" 2>&1)
+QSUB_EXIT=$?
 
 rm -f "${JOBSCRIPT}"
+
+if [ "${QSUB_EXIT}" -ne 0 ]; then
+    echo "[ERROR] qsub 失敗:" >&2
+    echo "${QSUB_OUTPUT}" >&2
+    exit 1
+fi
+
+JOB_ID=$(echo "${QSUB_OUTPUT}" | grep -oP 'Your job \K[0-9]+' || echo "unknown")
 
 echo ""
 echo "============================================================"

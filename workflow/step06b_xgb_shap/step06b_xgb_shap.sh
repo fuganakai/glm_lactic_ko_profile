@@ -101,7 +101,9 @@ if [ "${USE_SGE}" = true ]; then
                 cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem=${MEM_PER_JOB}
+#$ -l mem_user=${MEM_PER_JOB}
+#$ -l h_vmem=${MEM_PER_JOB}
+#$ -l mem_req=${MEM_PER_JOB}
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/
@@ -141,7 +143,9 @@ JOBEOF
             cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp ${CPUS_PER_JOB}
-#$ -l mem=${MEM_PER_JOB}
+#$ -l mem_user=${MEM_PER_JOB}
+#$ -l h_vmem=${MEM_PER_JOB}
+#$ -l mem_req=${MEM_PER_JOB}
 #$ -cwd
 #$ -o ${SGE_LOG_DIR}/
 #$ -e ${SGE_LOG_DIR}/
