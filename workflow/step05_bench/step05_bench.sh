@@ -123,6 +123,7 @@ python "${SCRIPT_DIR}/05_bench_models.py" \\
     --random-state   ${RANDOM_STATE} \\
     --n-trials-rf    ${N_TRIALS_RF} \\
     --n-trials-mlp   ${N_TRIALS_MLP} \\
+    --n-trials-xgb   ${N_TRIALS_XGB} \\
     > "${LOG_DIR}/${DATASET}_seed${SEED}.log" 2>&1
 JOBEOF
                 if [ "${DRY_RUN}" = true ]; then
@@ -164,6 +165,7 @@ python "${SCRIPT_DIR}/05_bench_models.py" \\
     --random-state   ${RANDOM_STATE} \\
     --n-trials-rf    ${N_TRIALS_RF} \\
     --n-trials-mlp   ${N_TRIALS_MLP} \\
+    --n-trials-xgb   ${N_TRIALS_XGB} \\
     > "${LOG_DIR}/${DATASET}.log" 2>&1
 JOBEOF
             if [ "${DRY_RUN}" = true ]; then
@@ -222,6 +224,7 @@ for DATASET in "${DATASETS[@]}"; do
                 --random-state   "${RANDOM_STATE}" \
                 --n-trials-rf    "${N_TRIALS_RF}" \
                 --n-trials-mlp   "${N_TRIALS_MLP}" \
+                --n-trials-xgb   "${N_TRIALS_XGB}" \
                 > "${LOG_DIR}/${DATASET}_seed${SEED}.log" 2>&1
             RUN_COUNT=$((RUN_COUNT + 1))
         done
@@ -247,6 +250,7 @@ for DATASET in "${DATASETS[@]}"; do
             --random-state   "${RANDOM_STATE}" \
             --n-trials-rf    "${N_TRIALS_RF}" \
             --n-trials-mlp   "${N_TRIALS_MLP}" \
+            --n-trials-xgb   "${N_TRIALS_XGB}" \
             > "${LOG_DIR}/${DATASET}.log" 2>&1
         RUN_COUNT=$((RUN_COUNT + 1))
     fi
