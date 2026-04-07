@@ -65,7 +65,7 @@ def _build_xgb(params, random_state):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="KO profile × XGBoost ベンチマーク + SHAP 解析"
+        description="KO profile × XGBoost 全データ学習 + SHAP 解析"
     )
     parser.add_argument("--ko-profile-csv", required=True)
     parser.add_argument("--response-csv",   required=True,
@@ -118,17 +118,6 @@ def main():
     # ── サンプル & KO フィルタリング ───────────────────────────────
     common_sids = [s for s in profile_df.index if s in resp_dict]
 
-    fold_arr = None
-    if args.split_tsv:
-        split_df = pd.read_csv(args.split_tsv, sep="\t")
-        split_df["sample_id"] = split_df["sample_id"].astype(str)
-        split_dict = dict(zip(split_df["sample_id"], split_df["fold"].astype(int)))
-        before = len(common_sids)
-        common_sids = [s for s in common_sids if s in split_dict]
-        print(f"[xgb_shap] split-tsv 適用: {before} → {len(common_sids)} サンプル "
-              f"({before - len(common_sids)} 件除外)")
-        fold_arr = np.array([split_dict[s] for s in common_sids])
-
     ko_cols = [c for c in profile_df.columns
                if profile_df.loc[common_sids, c].sum() >= args.min_samples_ko]
 
@@ -136,86 +125,22 @@ def main():
 
     X = profile_df.loc[common_sids, ko_cols].values.astype(np.float32)
     y = np.array([resp_dict[s] for s in common_sids], dtype=np.float32)
-    sids_arr = np.array(common_sids)
 
     # KO 名リストを保存（SHAP 配列の軸対応用）
     Path(os.path.join(args.output_dir, "ko_cols.txt")).write_text("\n".join(ko_cols) + "\n")
 
-    # ── CV 設定 ─────────────────────────────────────────────────────
-    inner_cv = KFold(n_splits=3, shuffle=True, random_state=args.random_state)
-
-    if fold_arr is not None:
-        unique_folds = sorted(set(fold_arr))
-        print(f"[xgb_shap] 共有 fold split 使用: {len(unique_folds)} folds")
-
-        def _outer_cv_iter():
-            for fi in unique_folds:
-                te_idx = np.where(fold_arr == fi)[0]
-                tr_idx = np.where(fold_arr != fi)[0]
-                yield fi, tr_idx, te_idx
-    else:
-        outer_cv_kf = KFold(n_splits=5, shuffle=True, random_state=args.random_state)
-
-        def _outer_cv_iter():
-            for fi, (tr_idx, te_idx) in enumerate(outer_cv_kf.split(sids_arr)):
-                yield fi, tr_idx, te_idx
-
-    # ── Nested CV 評価 ──────────────────────────────────────────────
-    all_preds = []
-    all_r2_rows = []
-    best_params_rows = []
-
-    print("[xgb_shap] === XGB ===")
-    for fold_idx, tr_idx, te_idx in _outer_cv_iter():
-        X_tr, y_tr = X[tr_idx], y[tr_idx]
-        X_te, y_te = X[te_idx], y[te_idx]
-
-        print(f"  [xgb] Fold {fold_idx}: Optuna チューニング ({args.n_trials} trials)...")
-        best_params, inner_r2 = _tune_xgb_with_optuna(
-            X_tr, y_tr, inner_cv, args.n_trials, args.random_state, fold_idx
-        )
-        print(f"  [xgb] Fold {fold_idx}: 内側R²={inner_r2:.4f}, params={best_params}")
-        best_params_rows.append({
-            "fold": fold_idx,
-            "inner_cv_r2": float(inner_r2),
-            "params": json.dumps(best_params),
-        })
-
-        sc = StandardScaler().fit(X_tr)
-        clf = _build_xgb(best_params, args.random_state)
-        clf.fit(sc.transform(X_tr), y_tr)
-
-        y_te_pred = clf.predict(sc.transform(X_te))
-        r2 = r2_score(y_te, y_te_pred)
-        print(f"  [xgb] Fold {fold_idx}: R²={r2:.4f}")
-        all_r2_rows.append({"model": "xgb", "fold": fold_idx, "r2": float(r2)})
-
-        for sid, yt, yp in zip(sids_arr[te_idx], y_te, y_te_pred):
-            all_preds.append({
-                "model": "xgb", "fold": fold_idx,
-                "sample_id": sid, "response_col": resp_col,
-                "y_true": float(yt), "y_pred": float(yp),
-            })
-
-    pred_df = pd.DataFrame(all_preds)
-    pred_df.to_csv(os.path.join(args.output_dir, "sample_predictions_xgb.csv"), index=False)
-
-    overall_r2 = r2_score(pred_df["y_true"], pred_df["y_pred"])
-    print(f"  [xgb] 全fold R²={overall_r2:.4f}")
-    all_r2_rows.append({"model": "xgb", "fold": "overall", "r2": float(overall_r2)})
-
-    r2_df = pd.DataFrame(all_r2_rows)
-    r2_df.to_csv(os.path.join(args.output_dir, "r2_scores_xgb.csv"), index=False)
-
-    bp_df = pd.DataFrame(best_params_rows)
-    bp_df.to_csv(os.path.join(args.output_dir, "best_params_xgb.csv"), index=False)
-    print(f"  [xgb] best_params -> {args.output_dir}/best_params_xgb.csv")
+    # ── best_params_xgb.csv から最良パラメータを取得（step5 が出力）──
+    best_params_path = os.path.join(args.output_dir, "best_params_xgb.csv")
+    if not os.path.exists(best_params_path):
+        print(f"[ERROR] best_params_xgb.csv が見つかりません: {best_params_path}", file=sys.stderr)
+        print("[ERROR] 先に step05_bench を実行してください。", file=sys.stderr)
+        sys.exit(1)
+    bp_df = pd.read_csv(best_params_path)
+    best_row = bp_df.loc[bp_df["inner_cv_r2"].idxmax()]
+    best_params_final = json.loads(best_row["params"])
+    print(f"[xgb_shap] best_params_xgb.csv を読み込み (best inner R²={best_row['inner_cv_r2']:.4f}): {best_params_final}")
 
     # ── Final model（全データで学習）────────────────────────────────
-    best_row = max(best_params_rows, key=lambda r: r["inner_cv_r2"])
-    best_params_final = json.loads(best_row["params"])
-    print(f"  [xgb] Final model params (best inner R²={best_row['inner_cv_r2']:.4f}): {best_params_final}")
-
     sc_final = StandardScaler().fit(X)
     clf_final = _build_xgb(best_params_final, args.random_state)
     clf_final.fit(sc_final.transform(X), y)
