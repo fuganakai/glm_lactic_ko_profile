@@ -24,7 +24,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -91,7 +91,7 @@ for SAMPLE in "${SAMPLES[@]}"; do
         continue
     fi
 
-    python "${PROJECT_ROOT}/scripts/03_kofamscan_to_csv.py" \
+    python "${SCRIPT_DIR}/03_kofamscan_to_csv.py" \
         --input  "${INPUT}" \
         --output "${OUTPUT}" \
         >> "${LOG_FILE}" 2>&1

@@ -28,7 +28,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -104,7 +104,7 @@ for DATASET in "${DATASETS[@]}"; do
     log_info "集約: ${DATASET}"
     # seeds をスペース区切りで渡す
     # shellcheck disable=SC2086
-    python "${PROJECT_ROOT}/scripts/07_aggregate_seeds.py" \
+    python "${SCRIPT_DIR}/07_aggregate_seeds.py" \
         --results-dir "${DATASET_DIR}" \
         --seeds       ${SEEDS} \
         > "${LOG_DIR}/${DATASET}.log" 2>&1

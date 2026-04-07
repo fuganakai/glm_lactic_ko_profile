@@ -53,16 +53,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 識別子と対応スクリプトの配列（順序保証のため2つに分けて管理）
 ALL_STEP_IDS=(0 1 2 3 4 5 6 6b 7 8)
 declare -A STEP_SCRIPT=(
-    [0]="step00_filter.sh"
-    [1]="step01_prokka.sh"
-    [2]="step02_kofamscan.sh"
-    [3]="step03_to_csv.sh"
-    [4]="step04_ko_profile.sh"
-    [5]="step05_bench.sh"
-    [6]="step06_visualize.sh"
-    [6b]="step06b_xgb_shap.sh"
-    [7]="step07_aggregate.sh"
-    [8]="step08_vis_all.sh"
+    [0]="step00_filter/step00_filter.sh"
+    [1]="step01_prokka/step01_prokka.sh"
+    [2]="step02_kofamscan/step02_kofamscan.sh"
+    [3]="step03_to_csv/step03_to_csv.sh"
+    [4]="step04_ko_profile/step04_ko_profile.sh"
+    [5]="step05_bench/step05_bench.sh"
+    [6]="step06_visualize/step06_visualize.sh"
+    [6b]="step06b_xgb_shap/step06b_xgb_shap.sh"
+    [7]="step07_aggregate/step07_aggregate.sh"
+    [8]="step08_vis_all/step08_vis_all.sh"
 )
 
 # ============================================================

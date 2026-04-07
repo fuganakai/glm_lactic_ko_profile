@@ -26,7 +26,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -86,7 +86,7 @@ fi
 mkdir -p "${FIG_DIR}" "$(dirname "${LOG_FILE}")"
 activate_conda "${CONDA_ENV_ML}"
 
-python "${PROJECT_ROOT}/scripts/08_visualize_all_datasets.py" \
+python "${SCRIPT_DIR}/08_visualize_all_datasets.py" \
     --results-dir "${TRIAL_DIR}" \
     --output-dir  "${FIG_DIR}" \
     > "${LOG_FILE}" 2>&1

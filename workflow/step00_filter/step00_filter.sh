@@ -23,7 +23,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 parse_args "$@"
 load_config
@@ -80,7 +80,7 @@ if [ "${DRY_RUN}" = true ]; then
     exit 0
 fi
 
-python "${PROJECT_ROOT}/scripts/00_filter_samples.py" \
+python "${SCRIPT_DIR}/00_filter_samples.py" \
     --genome-dir     "${GENOME_DIR}" \
     --min-genome-len "${MIN_GENOME_LEN}" \
     --output         "${OUTPUT_FILE}"
