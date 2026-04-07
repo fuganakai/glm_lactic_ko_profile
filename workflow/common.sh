@@ -67,64 +67,30 @@ parse_args() {
 }
 
 # ============================================================
-# config/pipeline.yaml の読み込み
+# 設定の読み込み
 #
-# プロジェクトルートの config/pipeline.yaml を読んで
-# 各設定を bash 変数としてエクスポートする。
+# workflow/config.sh を source して変数をエクスポートする。
 # ============================================================
 
 # スクリプトがどこにあっても、プロジェクトルートを正しく解決する
 _WORKFLOW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${_WORKFLOW_DIR}/.." && pwd)"
-CONFIG_FILE="${PROJECT_ROOT}/config/pipeline.yaml"
-
-_yaml_get() {
-    # 単純な "key: value" 形式の YAML から値を取り出す
-    # リスト ([40,41,...]) はそのまま文字列として返す
-    local key="$1"
-    grep -E "^${key}:" "${CONFIG_FILE}" \
-        | head -1 \
-        | sed -E 's/^[^:]+:[[:space:]]*//' \
-        | sed 's/^"//; s/"$//'
-}
 
 load_config() {
-    if [ ! -f "${CONFIG_FILE}" ]; then
-        log_error "config/pipeline.yaml が見つかりません: ${CONFIG_FILE}"
-        log_error "pipeline.sh を先に実行するか、--config で設定ファイルを生成してください"
+    local config_file="${_WORKFLOW_DIR}/config.sh"
+    if [ ! -f "${config_file}" ]; then
+        log_error "設定ファイルが見つかりません: ${config_file}"
         exit 1
     fi
 
-    # 入力・ツールパス
-    GENOME_DIR="$(_yaml_get genome_dir)"
-    RESPONSE_CSV_DIR="$(_yaml_get response_csv_dir)"
-    KOFAMSCAN_DIR="$(_yaml_get kofamscan_dir)"
-    KOFAMSCAN_KO_LIST="$(_yaml_get kofamscan_ko_list)"
-    KOFAMSCAN_PROFILES="$(_yaml_get kofamscan_profiles)"
+    # shellcheck source=workflow/config.sh
+    source "${config_file}"
 
-    # conda 環境
-    CONDA_BASE="$(_yaml_get conda_base)"
-    CONDA_ENV_PROKKA="$(_yaml_get conda_env_prokka)"
-    CONDA_ENV_KOFAM="$(_yaml_get conda_env_kofam)"
-    CONDA_ENV_ML="$(_yaml_get conda_env_ml)"
+    # パスを絶対パスに正規化（相対パスで書かれていた場合）
+    GENOME_DIR="$(cd "${PROJECT_ROOT}" && realpath -m "${GENOME_DIR}")"
+    RESPONSE_CSV_DIR="$(cd "${PROJECT_ROOT}" && realpath -m "${RESPONSE_CSV_DIR}")"
 
-    # パラメータ
-    MIN_SAMPLES_KO="$(_yaml_get min_samples_ko)"
-    MIN_GENOME_LEN="$(_yaml_get min_genome_len)"
-    RANDOM_STATE="$(_yaml_get random_state)"
-    N_ESTIMATORS="$(_yaml_get n_estimators)"
-    N_TRIALS_RF="$(_yaml_get n_trials_rf)"
-    N_TRIALS_MLP="$(_yaml_get n_trials_mlp)"
-    N_TRIALS_XGB="$(_yaml_get n_trials_xgb)"
-    TOP_N_KO="$(_yaml_get top_n_ko)"
-    TOP_N_PAIRS="$(_yaml_get top_n_pairs)"
-
-    # 試行ディレクトリ・出力先
-    SPLIT_INFO_DIR="$(_yaml_get split_info_dir)"
-    # seeds: [40,41,...] → "40 41 ..." に変換
-    SEEDS="$(_yaml_get seeds | tr -d '[]' | tr ',' ' ')"
-
-    # processed データ置き場
+    # processed データ置き場（固定）
     PROCESSED_DIR="${PROJECT_ROOT}/data/glm_lactic_ko_profile/processed"
 
     export GENOME_DIR RESPONSE_CSV_DIR
@@ -134,7 +100,7 @@ load_config() {
     export N_TRIALS_RF N_TRIALS_MLP N_TRIALS_XGB TOP_N_KO TOP_N_PAIRS
     export SPLIT_INFO_DIR SEEDS PROCESSED_DIR PROJECT_ROOT
 
-    log_info "config/pipeline.yaml を読み込みました"
+    log_info "workflow/config.sh を読み込みました"
 }
 
 # ============================================================
