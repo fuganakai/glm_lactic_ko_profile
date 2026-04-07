@@ -92,6 +92,8 @@ cat > "${JOBSCRIPT}" <<JOBEOF
 #$ -o ${LOG_FILE}
 #$ -e ${LOG_FILE}.err
 set -euo pipefail
+export USE_SGE=true
+export QSUB_EXTRA_OPTS="${QSUB_EXTRA_OPTS:-}"
 
 start_time=\$(date +%s)
 echo "[run_all] 開始: \$(date '+%Y-%m-%d %H:%M:%S')"
