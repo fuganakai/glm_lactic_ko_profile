@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
 """
-scripts/06_xgb_shap.py — KO profile × XGBoost ベンチマーク + SHAP 解析
+scripts/06_xgb_shap.py — KO profile × XGBoost 全データ学習 + SHAP 解析
 
 XGBoost の木が自然に KO 間の interaction を学習することを活用し、
 SHAP 値および SHAP interaction 値で各 KO・KO ペアの寄与を定量化する。
 
-CV 評価（Nested CV）と SHAP 計算（全データ final model）は分離する。
-    外側: 5-fold CV（性能評価）
-    内側: 3-fold CV（Optuna で R² 最大化）
+CV 評価（Nested CV）は step5（05_bench_models.py）で実施済み。
+本スクリプトは best_params_xgb.csv を読み込み、全データで最終モデルを学習して SHAP を計算する。
 
 INPUT:
     --ko-profile-csv  ko_profile.csv  (sample × KO バイナリ行列)
     --response-csv    レスポンス変数 CSV (sample_id 列 + 数値列1つ以上)
     --response-col    使用するレスポンス列名 (省略時は sample_id 以外の最初の数値列)
-    --split-tsv       共有 fold split TSV (sample_id 列 + fold 列)
-                      省略時: 内部 KFold(5, shuffle, random_state)
-    --output-dir      結果出力先
+    --output-dir      結果出力先（best_params_xgb.csv もここから読み込む）
 
 OUTPUT:
     {output_dir}/models/
         xgb_final.joblib              最終モデル（全データ学習）
         xgb_scaler_final.joblib       対応 StandardScaler
     {output_dir}/
-        sample_predictions_xgb.csv    fold ごとの予測値
-        r2_scores_xgb.csv             fold ごとの R²
-        best_params_xgb.csv           Optuna チューニング結果
         ko_cols.txt                   KO 名リスト（SHAP 配列の軸対応）
         shap_values_xgb.csv           SHAP 値 (n_samples × n_features)
         shap_interaction_raw_xgb.npy  生 SHAP interaction 値 (n_samples, n_ko, n_ko)
@@ -42,60 +36,14 @@ import joblib
 import numpy as np
 import pandas as pd
 import shap
-from sklearn.base import clone
-from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 import subprocess
 
-_XGB_DEFAULT_PARAMS = dict(
-    tree_method="hist",
-    random_state=42,
-    n_jobs=-1,
-)
-
 
 def _default_output_dir():
     return subprocess.check_output(["new-trial-dir"], text=True).strip()
-
-
-def _tune_xgb_with_optuna(X_tr, y_tr, inner_cv, n_trials, random_state, fold_idx):
-    """Optuna (TPE) で内側 3-fold CV を使って XGBoost をチューニング"""
-    import optuna
-    optuna.logging.set_verbosity(optuna.logging.WARNING)
-
-    def objective(trial):
-        model = XGBRegressor(
-            n_estimators=trial.suggest_categorical("n_estimators", [100, 300, 500, 1000]),
-            max_depth=trial.suggest_int("max_depth", 3, 8),
-            learning_rate=trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-            subsample=trial.suggest_float("subsample", 0.6, 1.0),
-            colsample_bytree=trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            reg_alpha=trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
-            reg_lambda=trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
-            tree_method="hist",
-            random_state=random_state,
-            n_jobs=-1,
-            verbosity=0,
-        )
-        scores = []
-        for tr_idx, val_idx in inner_cv.split(X_tr):
-            X_in, X_val = X_tr[tr_idx], X_tr[val_idx]
-            y_in, y_val = y_tr[tr_idx], y_tr[val_idx]
-            sc = StandardScaler().fit(X_in)
-            m = clone(model)
-            m.fit(sc.transform(X_in), y_in)
-            scores.append(r2_score(y_val, m.predict(sc.transform(X_val))))
-        return float(np.mean(scores))
-
-    study = optuna.create_study(
-        direction="maximize",
-        sampler=optuna.samplers.TPESampler(seed=random_state + fold_idx),
-    )
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
-    return study.best_params, study.best_value
 
 
 def _build_xgb(params, random_state):
@@ -124,15 +72,11 @@ def main():
                         help="レスポンス変数 CSV (sample_id 列必須)")
     parser.add_argument("--response-col",   default=None,
                         help="レスポンス列名 (省略時: sample_id 以外の最初の数値列)")
-    parser.add_argument("--split-tsv",      default=None,
-                        help="共有 fold split TSV (sample_id, fold 列。省略時: 内部 KFold)")
     parser.add_argument("--output-dir",     default=None,
                         help="結果出力先 (default: output/{project_name}/{NNN}/)")
     parser.add_argument("--min-samples-ko", type=int, default=5,
                         help="KO 保有サンプル数の下限フィルタ (default: 5)")
     parser.add_argument("--random-state",   type=int, default=42)
-    parser.add_argument("--n-trials",       type=int, default=50,
-                        help="Optuna チューニング試行数 (default: 50)")
     parser.add_argument("--top-n-pairs",    type=int, default=100,
                         help="shap_interaction_top_pairs.csv に出力する上位ペア数 (default: 100)")
     args = parser.parse_args()

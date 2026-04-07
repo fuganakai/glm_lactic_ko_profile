@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-scripts/05_bench_models.py — KO profile × Lasso / Ridge / RandomForest / MLP ベンチマーク
+scripts/05_bench_models.py — KO profile × Lasso / Ridge / RandomForest / MLP / XGBoost ベンチマーク
 
 embedding を使わず、KO 存在/不在バイナリ行列のみを特徴量として
-Lasso / Ridge / RandomForest / MLP でレスポンス変数を予測する。
+Lasso / Ridge / RandomForest / MLP / XGBoost でレスポンス変数を予測する。
 
-RF と MLP は Optuna (TPE) による Nested CV ハイパーパラメータチューニングを実施。
+RF, MLP, XGBoost は Optuna (TPE) による Nested CV ハイパーパラメータチューニングを実施。
   外側: 5-fold CV（性能評価）
   内側: 3-fold CV（Optuna で R² 最大化）
 
@@ -22,6 +22,9 @@ OUTPUT:
     {output_dir}/r2_scores.csv                    (全モデル × 全fold)
     {output_dir}/feature_importances.csv          (Lasso/Ridge/RF の KO 寄与度)
     {output_dir}/best_params_{rf,mlp}.csv         (Optuna チューニング結果)
+    {output_dir}/r2_scores_xgb.csv               (XGBoost fold × R²)
+    {output_dir}/sample_predictions_xgb.csv      (XGBoost fold ごとの予測値)
+    {output_dir}/best_params_xgb.csv             (XGBoost Optuna チューニング結果)
 """
 
 import argparse
@@ -39,6 +42,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
+from xgboost import XGBRegressor
 
 import joblib
 import subprocess
@@ -97,6 +101,60 @@ def _tune_with_optuna(X_tr, y_tr, model_type, inner_cv, n_trials, random_state, 
     return study.best_params, study.best_value
 
 
+def _tune_xgb_with_optuna(X_tr, y_tr, inner_cv, n_trials, random_state, fold_idx):
+    """Optuna (TPE) で内側 3-fold CV を使って XGBoost をチューニング"""
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def objective(trial):
+        model = XGBRegressor(
+            n_estimators=trial.suggest_categorical("n_estimators", [100, 300, 500, 1000]),
+            max_depth=trial.suggest_int("max_depth", 3, 8),
+            learning_rate=trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            subsample=trial.suggest_float("subsample", 0.6, 1.0),
+            colsample_bytree=trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            reg_alpha=trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
+            reg_lambda=trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
+            tree_method="hist",
+            random_state=random_state,
+            n_jobs=-1,
+            verbosity=0,
+        )
+        scores = []
+        for tr_idx, val_idx in inner_cv.split(X_tr):
+            X_in, X_val = X_tr[tr_idx], X_tr[val_idx]
+            y_in, y_val = y_tr[tr_idx], y_tr[val_idx]
+            sc = StandardScaler().fit(X_in)
+            m = clone(model)
+            m.fit(sc.transform(X_in), y_in)
+            scores.append(r2_score(y_val, m.predict(sc.transform(X_val))))
+        return float(np.mean(scores))
+
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=random_state + fold_idx),
+    )
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    return study.best_params, study.best_value
+
+
+def _build_xgb(params, random_state):
+    """チューニング済みパラメータから XGBRegressor を構築"""
+    return XGBRegressor(
+        n_estimators=params["n_estimators"],
+        max_depth=params["max_depth"],
+        learning_rate=params["learning_rate"],
+        subsample=params["subsample"],
+        colsample_bytree=params["colsample_bytree"],
+        reg_alpha=params["reg_alpha"],
+        reg_lambda=params["reg_lambda"],
+        tree_method="hist",
+        random_state=random_state,
+        n_jobs=-1,
+        verbosity=0,
+    )
+
+
 def _build_tuned_model(model_type, best_params, random_state):
     """チューニング済みパラメータからモデルインスタンスを構築"""
     if model_type == "rf":
@@ -136,7 +194,7 @@ def main():
     parser.add_argument("--output-dir",    default=None,
                         help="結果出力先 (default: output/{project_name}/{NNN}/)")
     parser.add_argument("--model",          default="all",
-                        choices=["lasso", "ridge", "rf", "mlp", "all"],
+                        choices=["lasso", "ridge", "rf", "mlp", "xgb", "all"],
                         help="使用するモデル (default: all)")
     parser.add_argument("--min-samples-ko", type=int, default=5,
                         help="KO保有サンプル数の下限フィルタ (default: 5)")
@@ -147,6 +205,8 @@ def main():
                         help="RF の Optuna チューニング試行数 (default: 50)")
     parser.add_argument("--n-trials-mlp",   type=int, default=80,
                         help="MLP の Optuna チューニング試行数 (default: 80)")
+    parser.add_argument("--n-trials-xgb",    type=int, default=50,
+                        help="XGBoost の Optuna チューニング試行数 (default: 50)")
     parser.add_argument("--top-n-ko",       type=int, default=30,
                         help="feature_importances.csv に出力する上位KO数 (default: 30)")
     args = parser.parse_args()
@@ -346,6 +406,60 @@ def main():
         joblib.dump(clf_final,  os.path.join(models_dir, f"{model_name}_final.joblib"))
         joblib.dump(sc_final,   os.path.join(models_dir, f"{model_name}_scaler_final.joblib"))
         print(f"  [{model_name}] Final model  -> {models_dir}/{model_name}_final.joblib")
+
+    # ── XGBoost Nested CV ───────────────────────────────────────────
+    if args.model in ("xgb", "all"):
+        xgb_preds = []
+        xgb_r2_rows = []
+        xgb_best_params_rows = []
+
+        print("[bench_models] === XGB ===")
+        for fold_idx, tr_idx, te_idx in _outer_cv_iter():
+            X_tr, y_tr = X[tr_idx], y[tr_idx]
+            X_te, y_te = X[te_idx], y[te_idx]
+
+            print(f"  [xgb] Fold {fold_idx}: Optuna チューニング ({args.n_trials_xgb} trials)...")
+            best_params, inner_r2 = _tune_xgb_with_optuna(
+                X_tr, y_tr, inner_cv, args.n_trials_xgb, args.random_state, fold_idx
+            )
+            print(f"  [xgb] Fold {fold_idx}: 内側R²={inner_r2:.4f}, params={best_params}")
+            xgb_best_params_rows.append({
+                "fold": fold_idx,
+                "inner_cv_r2": float(inner_r2),
+                "params": json.dumps(best_params),
+            })
+
+            sc = StandardScaler().fit(X_tr)
+            clf = _build_xgb(best_params, args.random_state)
+            clf.fit(sc.transform(X_tr), y_tr)
+
+            y_te_pred = clf.predict(sc.transform(X_te))
+            r2 = r2_score(y_te, y_te_pred)
+            print(f"  [xgb] Fold {fold_idx}: R²={r2:.4f}")
+            xgb_r2_rows.append({"model": "xgb", "fold": fold_idx, "r2": float(r2)})
+
+            for sid, yt, yp in zip(sids_arr[te_idx], y_te, y_te_pred):
+                xgb_preds.append({
+                    "model": "xgb", "fold": fold_idx,
+                    "sample_id": sid, "response_col": resp_col,
+                    "y_true": float(yt), "y_pred": float(yp),
+                })
+
+        xgb_pred_df = pd.DataFrame(xgb_preds)
+        xgb_pred_df.to_csv(
+            os.path.join(args.output_dir, "sample_predictions_xgb.csv"), index=False)
+
+        overall_r2_xgb = r2_score(xgb_pred_df["y_true"], xgb_pred_df["y_pred"])
+        print(f"  [xgb] 全fold R²={overall_r2_xgb:.4f}")
+        xgb_r2_rows.append({"model": "xgb", "fold": "overall", "r2": float(overall_r2_xgb)})
+
+        xgb_r2_df = pd.DataFrame(xgb_r2_rows)
+        xgb_r2_df.to_csv(os.path.join(args.output_dir, "r2_scores_xgb.csv"), index=False)
+        print(f"  [xgb] R² scores -> {args.output_dir}/r2_scores_xgb.csv")
+
+        xgb_bp_df = pd.DataFrame(xgb_best_params_rows)
+        xgb_bp_df.to_csv(os.path.join(args.output_dir, "best_params_xgb.csv"), index=False)
+        print(f"  [xgb] best_params -> {args.output_dir}/best_params_xgb.csv")
 
     # ── R² スコアの保存 ────────────────────────────────────────────
     r2_df = pd.DataFrame(all_r2_rows)
