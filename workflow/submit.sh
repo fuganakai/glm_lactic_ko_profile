@@ -88,7 +88,6 @@ done
 cat > "${JOBSCRIPT}" <<JOBEOF
 #!/bin/bash
 #$ -pe smp 1
-#$ -l mem=4G
 #$ -l d_rt=${WALL_TIME}
 #$ -cwd
 #$ -j y
@@ -122,12 +121,21 @@ fi
 
 echo "[submit.sh] qsub 投入中..."
 # shellcheck disable=SC2086
-JOB_ID=$(qsub ${QSUB_EXTRA_OPTS:-} \
+QSUB_OUTPUT=$(qsub ${QSUB_EXTRA_OPTS:-} \
     -N "run_all" \
     ${SYNC_OPT} \
-    "${JOBSCRIPT}" | grep -oP 'Your job \K[0-9]+' || echo "unknown")
+    "${JOBSCRIPT}" 2>&1)
+QSUB_EXIT=$?
 
 rm -f "${JOBSCRIPT}"
+
+if [ "${QSUB_EXIT}" -ne 0 ]; then
+    echo "[ERROR] qsub 失敗:" >&2
+    echo "${QSUB_OUTPUT}" >&2
+    exit 1
+fi
+
+JOB_ID=$(echo "${QSUB_OUTPUT}" | grep -oP 'Your job \K[0-9]+' || echo "unknown")
 
 echo ""
 echo "============================================================"
