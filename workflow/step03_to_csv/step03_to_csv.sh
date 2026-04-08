@@ -101,5 +101,6 @@ done
 
 log_info "Step 3 完了: 実行=${RUN_COUNT}  スキップ=${SKIP_COUNT}  入力なし=${MISS_COUNT}"
 if [ "${MISS_COUNT}" -gt 0 ]; then
-    log_warn "${MISS_COUNT} サンプルの KoFamScan 出力が見つかりませんでした。step02 を確認してください"
+    log_error "${MISS_COUNT} サンプルの KoFamScan 出力が見つかりませんでした。step02 を先に完了させてください"
+    exit 1
 fi
